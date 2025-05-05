@@ -10,6 +10,8 @@ router.use(authMiddleware);
 router.post('/create', trainingSessionController.createSession);
 // Trainer: get my sessions
 router.get('/my-sessions', trainingSessionController.getMySessions);
+// Trainer: delete session
+router.delete('/:id', trainingSessionController.deleteSession);
 // Student: enroll in session
 router.post('/enroll/:id', trainingSessionController.enrollInSession);
 // Student: get available sessions
@@ -18,14 +20,5 @@ router.get('/available', trainingSessionController.getAvailableSessions);
 router.get('/enrolled', trainingSessionController.getMyEnrolledSessions);
 // Trainer/Student: get calendar data
 router.get('/calendar', trainingSessionController.getCalendar);
-
-// Examiner: get all sessions
-router.get('/all', trainingSessionController.getAllSessions);
-// Examiner: reschedule session
-router.post('/reschedule', trainingSessionController.rescheduleSession);
-// Examiner: check-in/check-out
-router.post('/checkinout', trainingSessionController.checkInOut);
-// Examiner: get calendar
-router.get('/examiner-calendar', trainingSessionController.getExaminerCalendar);
 
 module.exports = router;

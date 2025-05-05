@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
+import { useNavigate } from 'react-router-dom';
+
+const TEMP_SESSION_IMG = 'https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=facearea&w=400&h=400&q=80';
 
 function TrainerDashboard() {
   const [sessions, setSessions] = useState([]);
@@ -8,7 +11,10 @@ function TrainerDashboard() {
   const [loading, setLoading] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
+  const [showEnrolledModal, setShowEnrolledModal] = useState(false);
+  const [enrolledList, setEnrolledList] = useState([]);
   const token = localStorage.getItem('token');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchSessions();
@@ -67,10 +73,10 @@ function TrainerDashboard() {
     return dates;
   }
 
-  // Build a map: date string (YYYY-MM-DD) -> session(s)
+  // Build a map: date string (YYYY-MM-DD) -> session(s) with at least one enrolled student
   const highlightDates = {};
   sessions.forEach(session => {
-    if (session.dayOfWeek) {
+    if (session.dayOfWeek && session.enrolledStudents && session.enrolledStudents.length > 0) {
       getNextFourDates(session.dayOfWeek).forEach(date => {
         const key = date.toISOString().slice(0, 10);
         if (!highlightDates[key]) highlightDates[key] = [];
@@ -127,16 +133,48 @@ function TrainerDashboard() {
     return months;
   };
 
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/');
+  };
+
+  // Remove session handler
+  const handleRemoveSession = async (sessionId) => {
+    if (!window.confirm('Are you sure you want to remove this session?')) return;
+    setLoading(true);
+    const res = await fetch(`/api/sessions/${sessionId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      fetchSessions();
+    } else {
+      const data = await res.json();
+      alert(data.message || 'Error deleting session');
+    }
+    setLoading(false);
+  };
+
+  // Remove modal open/close race condition
+  const openSessionModal = (session) => {
+    setSelectedSession(session);
+    setShowModal(true);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-200 flex flex-col">
-      <h2 className="text-4xl font-extrabold text-blue-900 mb-8 mt-10 text-center tracking-tight drop-shadow-lg">Trainer Dashboard</h2>
-      <div className="flex flex-col md:flex-row gap-10 w-full max-w-5xl mx-auto">
-        <div className="flex-1 flex flex-col items-center">
-          <button className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-xl font-bold text-lg shadow-lg hover:from-blue-700 hover:to-blue-600 transition-all duration-200 mb-8" onClick={() => setShowModal(true)}>+ Create Session</button>
+      <div className="flex flex-col md:flex-row w-full h-full">
+        {/* Left: Main Content */}
+        <div className="flex-1 flex flex-col px-8 py-10">
+          <div className="flex justify-between items-center mb-10">
+            <h2 className="text-4xl font-extrabold text-blue-900 tracking-tight drop-shadow-lg">Trainer Dashboard</h2>
+            <button onClick={handleLogout} className="bg-gradient-to-r from-blue-600 to-blue-400 text-white font-bold px-6 py-3 rounded-xl shadow hover:from-blue-700 hover:to-blue-600 transition text-lg">Logout</button>
+          </div>
+          <button className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-4 rounded-2xl font-bold text-2xl shadow-lg hover:from-blue-700 hover:to-blue-600 transition-all duration-200 mb-10" onClick={() => setShowModal(true)}>+ Create Session</button>
           {showModal && (
             <Modal isOpen={!!showModal} onRequestClose={() => setShowModal(false)} ariaHideApp={false} style={{
               overlay: { backgroundColor: 'rgba(30, 58, 138, 0.6)', zIndex: 50 },
-              content: { borderRadius: '1.5rem', maxWidth: '420px', margin: 'auto', padding: '2.5rem', background: 'white', border: 'none', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)' }
+              content: { borderRadius: '1.5rem', maxWidth: '480px', margin: 'auto', padding: '2.5rem', background: 'white', border: 'none', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)' }
             }}>
               <form onSubmit={handleCreateSession} className="space-y-5">
                 <h3 className="text-2xl font-bold text-blue-800 mb-2">Create Session</h3>
@@ -161,41 +199,82 @@ function TrainerDashboard() {
               </form>
             </Modal>
           )}
-          <div className="w-full mt-8">
-            <h3 className="text-2xl font-bold text-blue-800 mb-4 tracking-wide">My Sessions</h3>
+          <div className="w-full mt-4">
+            <h3 className="text-2xl font-bold text-blue-800 mb-6 tracking-wide">My Sessions</h3>
             {loading ? <div>Loading...</div> : sessions.length === 0 ? <div className="text-blue-700">No sessions yet.</div> : sessions.map(s => (
-              <div key={s._id} className="bg-white border border-blue-100 rounded-2xl shadow p-5 mb-4 flex flex-col gap-1 hover:shadow-xl transition-all duration-200">
-                <div className="font-bold text-blue-900 text-xl mb-1">{s.title}</div>
-                <div className="text-blue-700 text-sm">Mode: <span className="font-semibold">{s.mode}</span></div>
-                <div className="text-blue-700 text-sm">Live: <span className="font-semibold">{s.isLive ? 'Yes' : 'No'}</span></div>
-                <div className="text-blue-700 text-sm">Enrolled: <span className="font-semibold">{s.enrolledStudents?.length || 0}</span></div>
-                <div className="text-blue-700 text-sm">Day: <span className="font-semibold">{s.dayOfWeek}</span></div>
-                <div className="text-blue-700 text-sm">{s.description}</div>
+              <div key={s._id} className="bg-gradient-to-br from-blue-100 to-cyan-100 rounded-2xl md:rounded-3xl shadow-2xl border-2 md:border-4 border-blue-300 flex flex-col sm:flex-row overflow-hidden hover:shadow-3xl transition-all min-w-0 max-w-full w-full mb-8 p-3 md:p-10 gap-3 md:gap-10">
+                <img src={TEMP_SESSION_IMG} alt="Session" className="w-full sm:w-32 md:w-[220px] lg:w-[320px] h-32 md:h-48 lg:h-72 object-cover rounded-xl md:rounded-2xl shadow-lg border-2 border-blue-200 flex-shrink-0" />
+                <div className="flex flex-col gap-6 flex-1 justify-center">
+                  <div className="flex items-center gap-6 mb-2">
+                    <span className={`inline-block w-5 h-5 rounded-full ${s.mode === 'online' ? 'bg-green-400' : 'bg-gray-400'} shadow`} title={s.mode}></span>
+                    <span className="text-xl font-bold text-blue-600 uppercase tracking-widest">{s.mode === 'online' ? 'Online' : 'Offline'}</span>
+                    {s.isLive && <span className="ml-6 px-6 py-2 bg-blue-200 text-blue-900 text-xl rounded-full font-extrabold shadow">Live</span>}
+                  </div>
+                  <div className="font-extrabold text-4xl text-blue-900 mb-2 drop-shadow-lg">{s.title}</div>
+                  <div className="text-blue-800 text-xl mb-2 font-medium">{s.description}</div>
+                  <div className="flex flex-wrap gap-10 text-xl text-blue-700 mb-2 font-semibold">
+                    <span>Trainer: <span className="font-bold text-blue-900">You</span></span>
+                    <span>Date: <span className="font-bold text-blue-900">{s.dayOfWeek || 'TBA'}</span></span>
+                    <span>Enrolled: <button type="button" className="font-bold underline text-blue-800 hover:text-blue-600 focus:outline-none" onClick={() => { setEnrolledList(s.enrolledStudents || []); setShowEnrolledModal(true); }}>{s.enrolledStudents?.length || 0}</button></span>
+                  </div>
+                  <div className="flex gap-6 mt-auto">
+                    {s.isLive ? (
+                      <span className="px-8 py-3 rounded-xl bg-green-200 text-green-900 font-extrabold text-xl shadow">Live</span>
+                    ) : (
+                      <span className="px-8 py-3 rounded-xl bg-gray-100 text-gray-700 font-extrabold text-xl shadow">Not Live</span>
+                    )}
+                    {s.mode === 'offline' && <span className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-bold text-xl">Offline</span>}
+                    <button
+                      className="ml-auto bg-gradient-to-r from-red-500 to-red-700 text-white font-extrabold text-xl px-8 py-3 rounded-xl shadow hover:from-red-600 hover:to-red-800 transition"
+                      onClick={() => handleRemoveSession(s._id)}
+                      disabled={loading}
+                    >
+                      {loading ? 'Removing...' : 'Remove'}
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
-        {/* Right: Plain Calendar */}
-        <div className="hidden md:flex flex-col items-center justify-start pt-4 sticky top-0 h-screen">
-          <div className="bg-white rounded-3xl shadow-2xl border-2 border-blue-200 p-8" style={{ width: 400, minHeight: 400, maxHeight: 650, overflowY: 'auto' }}>
-            <div className="text-blue-700 font-extrabold text-xl mb-4 text-center tracking-wide">Calendar</div>
+        {/* Right: Calendar */}
+        <div className="hidden md:flex flex-col items-center justify-start pt-10 pr-10 w-[440px]">
+          <div className="bg-white rounded-3xl shadow-2xl border-2 border-blue-200 p-10 w-full" style={{ minHeight: 400, maxHeight: 700, overflowY: 'auto' }}>
+            <div className="text-blue-700 font-extrabold text-2xl mb-6 text-center tracking-wide">Calendar</div>
             {renderCalendar()}
           </div>
         </div>
       </div>
       <Modal isOpen={!!showSessionModal} onRequestClose={() => setShowSessionModal(false)} ariaHideApp={false}>
         {selectedSession && (
-          <div>
-            <h3 className="text-lg font-bold mb-2">Session Details</h3>
-            <div>Title: {selectedSession.title}</div>
-            <div>Day: {selectedSession.dayOfWeek}</div>
-            <div>Mode: {selectedSession.mode}</div>
-            <div>Description: {selectedSession.description}</div>
-            <div>Live: {selectedSession.isLive ? 'Yes' : 'No'}</div>
-            <div>Enrolled: {selectedSession.enrolledStudents?.length || 0}</div>
-            <button className="mt-4 bg-gray-300 px-4 py-2 rounded" onClick={() => setShowSessionModal(false)}>Close</button>
+          <div className="flex flex-col gap-3 p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-100 shadow-2xl border-2 border-blue-200 min-w-[320px] max-w-lg mx-auto">
+            <div className="text-2xl font-extrabold text-blue-900 mb-1 text-center tracking-tight">{selectedSession.title}</div>
+            <div className="flex flex-wrap gap-2 justify-center text-blue-700 font-medium text-base mb-1">
+              <span>Day: <span className="font-bold">{selectedSession.dayOfWeek}</span></span>
+              <span>| Mode: <span className="font-bold">{selectedSession.mode}</span></span>
+              <span>| Live: <span className="font-bold">{selectedSession.isLive ? 'Yes' : 'No'}</span></span>
+              <span>| Enrolled: <span className="font-bold">{selectedSession.enrolledStudents?.length || 0}</span></span>
+            </div>
+            <div className="text-slate-700 text-base leading-relaxed text-center mb-2">{selectedSession.description}</div>
+            <button className="mt-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold text-base px-6 py-2 rounded-xl shadow hover:from-blue-700 hover:to-blue-600 transition self-center" onClick={() => setShowSessionModal(false)}>Close</button>
           </div>
         )}
+      </Modal>
+      {/* Enrolled students modal */}
+      <Modal isOpen={showEnrolledModal} onRequestClose={() => setShowEnrolledModal(false)} ariaHideApp={false}>
+        <div className="flex flex-col gap-3 p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-100 shadow-2xl border-2 border-blue-200 min-w-[320px] max-w-lg mx-auto">
+          <div className="text-xl font-bold text-blue-900 mb-2 text-center">Enrolled Students</div>
+          {enrolledList.length === 0 ? (
+            <div className="text-blue-700 text-center">No students enrolled.</div>
+          ) : (
+            <ul className="list-disc list-inside text-blue-800">
+              {enrolledList.map((stu, idx) => (
+                <li key={stu._id || idx}>{stu.email}</li>
+              ))}
+            </ul>
+          )}
+          <button className="mt-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold text-base px-6 py-2 rounded-xl shadow hover:from-blue-700 hover:to-blue-600 transition self-center" onClick={() => setShowEnrolledModal(false)}>Close</button>
+        </div>
       </Modal>
     </div>
   );

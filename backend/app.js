@@ -13,16 +13,16 @@ app.use(cors());
 app.use(express.json()); // parse JSON requests
 
 // Connect to your local MongoDB
-mongoose.connect('mongodb://localhost:27017/drone', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => console.log('MongoDB connected'))
-    .catch(err => console.log(err));
+mongoose.connect('mongodb://localhost:27017/drone')
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.log(err));
 
 // Auth routes
 const authRoutes = require('./routes/auth');
 const trainingSessionRoutes = require('./routes/trainingSession');
+const examinerRoutes = require('./routes/examiner');
 app.use('/api/auth', authRoutes);
 app.use('/api/sessions', trainingSessionRoutes);
+app.use('/api/examiner', examinerRoutes);
 
 server.listen(5000, () => console.log('Server listening on port 5000'));

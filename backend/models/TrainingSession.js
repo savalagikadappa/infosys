@@ -9,8 +9,10 @@ const trainingSessionSchema = new mongoose.Schema({
   isLive: { type: Boolean, default: false },
   dayOfWeek: { type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], required: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  enrolledStudents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  examinerStatus: { type: Map, of: String }, // examinerId -> 'checked-in'/'checked-out'
+  enrolledStudents: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    enrolledAt: { type: Date, required: true }
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('TrainingSession', trainingSessionSchema);

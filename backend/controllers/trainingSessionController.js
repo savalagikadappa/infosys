@@ -49,11 +49,18 @@ exports.enrollInSession = async (req, res) => {
     const session = await TrainingSession.findById(sessionId);
     if (!session) return res.status(404).json({ message: 'Session not found' });
     // Prevent double enrollment
-    if (session.enrolledStudents.includes(userId)) {
+    if (session.enrolledStudents.some(e => e.user.toString() === userId)) {
       return res.status(400).json({ message: 'Already enrolled' });
     }
-    // Removed conflict detection by date
-    session.enrolledStudents.push(userId);
+    // Conflict detection by dayOfWeek
+    const conflict = await TrainingSession.findOne({
+      'enrolledStudents.user': userId,
+      dayOfWeek: session.dayOfWeek
+    });
+    if (conflict) {
+      return res.status(400).json({ message: `You already have a session on ${session.dayOfWeek} and can't book another on the same day.` });
+    }
+    session.enrolledStudents.push({ user: userId, enrolledAt: new Date() });
     await session.save();
     // Emit real-time update
     const io = req.app.get('io');
@@ -69,8 +76,8 @@ exports.getAvailableSessions = async (req, res) => {
   try {
     // Only return sessions where the candidate is NOT already enrolled
     const sessions = await TrainingSession.find({
-      enrolledStudents: { $ne: req.user.userId }
-    }).populate('createdBy', 'email');
+      'enrolledStudents.user': { $ne: req.user.userId }
+    }).populate('createdBy', 'email').populate('enrolledStudents.user', 'email');
     res.json(sessions);
   } catch (err) {
     res.status(500).json({ message: 'Error fetching sessions', error: err });
@@ -80,8 +87,9 @@ exports.getAvailableSessions = async (req, res) => {
 // List sessions a student is enrolled in
 exports.getMyEnrolledSessions = async (req, res) => {
   try {
-    const sessions = await TrainingSession.find({ enrolledStudents: req.user.userId })
+    const sessions = await TrainingSession.find({ 'enrolledStudents.user': req.user.userId })
       .populate('createdBy', 'email')
+      .populate('enrolledStudents.user', 'email')
       .sort({ createdAt: 1 });
     res.json(sessions);
   } catch (err) {
@@ -106,69 +114,20 @@ exports.getCalendar = async (req, res) => {
   }
 };
 
-// Examiner: List all sessions
-exports.getAllSessions = async (req, res) => {
+// Delete a session (Trainer only)
+exports.deleteSession = async (req, res) => {
   try {
-    if (req.user.role !== 'examiner') {
-      return res.status(403).json({ message: 'Not allowed' });
-    }
-    const sessions = await TrainingSession.find({}).populate('createdBy', 'email role').populate('enrolledStudents', 'email');
-    res.json(sessions);
-  } catch (err) {
-    res.status(500).json({ message: 'Error fetching all sessions', error: err });
-  }
-};
-
-// Examiner: Reschedule (reallocate) a session
-exports.rescheduleSession = async (req, res) => {
-  try {
-    if (req.user.role !== 'examiner') {
-      return res.status(403).json({ message: 'Not allowed' });
-    }
-    const { sessionId } = req.body;
-    const session = await TrainingSession.findById(sessionId);
+    const session = await TrainingSession.findById(req.params.id);
     if (!session) return res.status(404).json({ message: 'Session not found' });
-    // Removed conflict detection by date
-    // No date to update
+    if (session.createdBy.toString() !== req.user.userId) {
+      return res.status(403).json({ message: 'Not allowed' });
+    }
+    await session.deleteOne();
     // Emit real-time update
     const io = req.app.get('io');
     if (io) io.emit('session-updated');
-    res.json({ message: 'Session rescheduled successfully', session });
+    res.json({ message: 'Session deleted' });
   } catch (err) {
-    res.status(500).json({ message: 'Error rescheduling session', error: err });
-  }
-};
-
-// Examiner: Check-in/check-out for a session
-exports.checkInOut = async (req, res) => {
-  try {
-    if (req.user.role !== 'examiner') {
-      return res.status(403).json({ message: 'Not allowed' });
-    }
-    const { sessionId, action } = req.body; // action: 'checkin' or 'checkout'
-    const session = await TrainingSession.findById(sessionId);
-    if (!session) return res.status(404).json({ message: 'Session not found' });
-    if (!session.examinerStatus) session.examinerStatus = {};
-    session.examinerStatus[req.user.userId] = action === 'checkin' ? 'checked-in' : 'checked-out';
-    await session.save();
-    // Emit real-time update
-    const io = req.app.get('io');
-    if (io) io.emit('session-updated');
-    res.json({ message: `Examiner ${action} successful`, status: session.examinerStatus[req.user.userId] });
-  } catch (err) {
-    res.status(500).json({ message: 'Error in check-in/out', error: err });
-  }
-};
-
-// Examiner: Get calendar of all sessions
-exports.getExaminerCalendar = async (req, res) => {
-  try {
-    if (req.user.role !== 'examiner') {
-      return res.status(403).json({ message: 'Not allowed' });
-    }
-    const sessions = await TrainingSession.find({});
-    res.json(sessions.map(s => ({ isLive: s.isLive, title: s.title, trainer: s.createdBy })));
-  } catch (err) {
-    res.status(500).json({ message: 'Error fetching examiner calendar', error: err });
+    res.status(500).json({ message: 'Error deleting session', error: err });
   }
 };

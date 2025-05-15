@@ -99,11 +99,11 @@ function Auth() {
             {/* Auth card (centered, above background) */}
             <div className="relative z-10 w-full max-w-md p-10 rounded-2xl border border-blue-500 shadow-lg bg-white flex flex-col items-center">
                 {/* Minimal logo/brand mark */}
-                <div className="mb-8 flex items-center justify-center">
+                {/* <div className="mb-8 flex items-center justify-center">
                     <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center">
                         <span className="text-white text-2xl font-bold select-none">i</span>
                     </div>
-                </div>
+                </div> */}
                 <h2 className="text-3xl font-bold text-blue-700 mb-2 tracking-tight text-center">
                     {isSignup ? 'Sign Up' : 'Login'}
                 </h2>

@@ -20,8 +20,8 @@ function CandidateDashboard() {
   const [examAllocations, setExamAllocations] = useState([]);
   const [highlightDates, setHighlightDates] = useState({});
   const [profile, setProfile] = useState({
-    name: '',
-    email: '',
+    name: localStorage.getItem('name') || 'John Doe',
+    email: localStorage.getItem('email') || 'john.doe@example.com',
     profileImg: TEMP_PROFILE_IMG,
     enrolledCount: 0,
     examsUpcoming: 0,
@@ -172,7 +172,10 @@ function CandidateDashboard() {
       <div className="md:hidden flex items-center justify-between bg-white shadow px-4 py-3 border-b border-blue-100 sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <img src={profile.profileImg} alt="Profile" className="w-10 h-10 rounded-full border-2 border-blue-200 shadow min-w-10" />
-          <span className="font-bold text-blue-900">{profile.name}</span>
+          <div className="flex flex-col">
+            <span className="font-bold text-blue-900">{profile.name}</span>
+            <button onClick={() => setActiveTab('profile')} className="text-blue-500 text-sm underline">View Profile</button>
+          </div>
         </div>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-blue-700 focus:outline-none text-2xl">☰</button>
       </div>

@@ -38,7 +38,8 @@ exports.login = async (req, res) => {
     // Create token, signed with SECRET_KEY
     const token = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
 
-    res.json({ token, role: user.role }); // Send token to client
+    const name = email.split('@')[0]; // Extract name from email
+    res.json({ token, role: user.role, name, email }); // Include extracted name and email in the response
   } catch (err) {
     res.status(500).json({ message: 'Error logging in', error: err });
   }

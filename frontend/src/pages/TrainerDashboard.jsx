@@ -15,6 +15,7 @@ function TrainerDashboard() {
   const [selectedSession, setSelectedSession] = useState(null);
   const [showEnrolledModal, setShowEnrolledModal] = useState(false);
   const [enrolledList, setEnrolledList] = useState([]);
+  const [highlightDates, setHighlightDates] = useState({});
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
 
@@ -56,19 +57,27 @@ function TrainerDashboard() {
     setLoading(false);
   };
 
-  // Helper: get next 4 dates for a given dayOfWeek
+  // Robust getNextFourDates: always starts from the later of today or startDate, works for all years/months
   function getNextFourDates(dayOfWeek, startDate) {
     const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
     const targetDay = dayMap[dayOfWeek];
     if (targetDay === undefined) return [];
-    const dates = [];
-    let date = new Date(startDate); // Start from the enrollment date
 
-    // Adjust to the first occurrence of the target day
-    const daysToAdd = (targetDay - date.getDay() + 7) % 7;
-    date.setDate(date.getDate() + daysToAdd);
+    // Use the later of today or startDate
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const base = new Date(startDate);
+    base.setHours(0, 0, 0, 0);
+    let date = base > today ? new Date(base) : new Date(today);
+
+    // Find the first occurrence of the target day on or after base date
+    const dayDiff = (targetDay - date.getDay() + 7) % 7;
+    if (dayDiff > 0) {
+      date.setDate(date.getDate() + dayDiff);
+    }
 
     // Collect the next 4 occurrences
+    const dates = [];
     for (let i = 0; i < 4; i++) {
       dates.push(new Date(date));
       date.setDate(date.getDate() + 7);
@@ -76,21 +85,25 @@ function TrainerDashboard() {
     return dates;
   }
 
-  // Build a map: date string (YYYY-MM-DD) -> session(s) with at least one enrolled student
-  const highlightDates = {};
-  sessions.forEach(session => {
-    if (session.dayOfWeek && session.enrolledStudents) {
-      session.enrolledStudents.forEach(student => {
-        if (student.enrolledAt) {
-          getNextFourDates(session.dayOfWeek, student.enrolledAt).forEach(date => {
-            const key = date.toISOString().slice(0, 10);
-            if (!highlightDates[key]) highlightDates[key] = [];
-            highlightDates[key].push(session);
-          });
-        }
-      });
-    }
-  });
+  // Use local date string (YYYY-MM-DD) for highlightDates keys and calendar
+  useEffect(() => {
+    const newHighlightDates = {};
+    sessions.forEach(session => {
+      if (session.dayOfWeek && session.enrolledStudents) {
+        session.enrolledStudents.forEach(student => {
+          if (student.enrolledAt) {
+            const dates = getNextFourDates(session.dayOfWeek, student.enrolledAt);
+            dates.forEach(date => {
+              const key = date.toLocaleDateString('en-CA'); // Use local date string
+              if (!newHighlightDates[key]) newHighlightDates[key] = [];
+              newHighlightDates[key].push(session);
+            });
+          }
+        });
+      }
+    });
+    setHighlightDates(newHighlightDates);
+  }, [sessions]);
 
   // Add debugging logs to verify highlightDates and tileClassName behavior
   useEffect(() => {
@@ -99,7 +112,7 @@ function TrainerDashboard() {
 
   // Calendar click handler
   const handleCalendarClick = (date) => {
-    const key = date.toISOString().slice(0, 10);
+    const key = date.toLocaleDateString('en-CA'); // Use local date string
     if (highlightDates[key]) {
       setSelectedSession(highlightDates[key][0]);
       setShowSessionModal(true);
@@ -218,12 +231,11 @@ function TrainerDashboard() {
               <Calendar
                 onClickDay={handleCalendarClick}
                 tileClassName={({ date }) => {
-                  const key = date.toISOString().slice(0, 10);
+                  const key = date.toLocaleDateString('en-CA'); // Use local date string
                   if (highlightDates[key]) {
-                    console.log('Highlighting date:', key, 'with data:', highlightDates[key]);
-                    return 'border-2 border-red-500';
+                    return 'dark-red-box'; // Apply the CSS class for highlighted dates
                   }
-                  return null;
+                  return null; // No styling for non-highlighted dates
                 }}
               />
             </div>

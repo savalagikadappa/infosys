@@ -77,6 +77,8 @@ function Auth() {
             } else {
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('role', data.role); // Store role
+                localStorage.setItem('name', data.name); // Store name
+                localStorage.setItem('email', data.email); // Store email
                 alert('Logged in!');
                 // Redirect based on role
                 if (data.role === 'candidate') navigate('/candidate-dashboard');

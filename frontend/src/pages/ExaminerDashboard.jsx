@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
+
+const TEMP_SESSION_IMG = '/images/drone.jpg';
 
 function ExaminerDashboard() {
   const [calendarData, setCalendarData] = useState({ availability: [], allocations: [], sessions: [] });
@@ -50,50 +54,6 @@ function ExaminerDashboard() {
     setLoading(false);
   };
 
-  // Calendar rendering logic
-  const today = new Date(2025, 4, 5); // May 5, 2025
-  const months = [];
-  for (let m = 0; m < 2; m++) {
-    const month = new Date(today.getFullYear(), today.getMonth() + m, 1);
-    const days = [];
-    const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    for (let wd = 0; wd < 7; wd++) {
-      days.push(<div key={'wd' + wd} className="text-xs font-bold text-blue-700 text-center mb-1">{weekDays[wd]}</div>);
-    }
-    for (let b = 0; b < month.getDay(); b++) {
-      days.push(<div key={'b' + b}></div>);
-    }
-    for (let d = 1; d <= 31; d++) {
-      const day = new Date(month.getFullYear(), month.getMonth(), d);
-      if (day.getMonth() !== month.getMonth()) break;
-      const key = day.toISOString().slice(0, 10);
-      // Color logic
-      const isAvailable = calendarData.availability?.some(dt => dt.slice(0, 10) === key);
-      const hasExam = calendarData.allocations?.some(a => a.date.slice(0, 10) === key);
-      const hasTraining = calendarData.sessions?.some(s => s.enrolledStudents?.length && getSessionDates(s).includes(key));
-      let bg = 'bg-blue-50 text-blue-700 hover:bg-blue-200';
-      if (hasExam && hasTraining) bg = 'bg-gradient-to-r from-green-500 to-red-500 text-white';
-      else if (hasExam) bg = 'bg-green-500 text-white';
-      else if (hasTraining) bg = 'bg-red-500 text-white';
-      else if (isAvailable) bg = 'bg-yellow-200 text-blue-900';
-      days.push(
-        <div
-          key={d}
-          className={`w-9 h-9 flex items-center justify-center rounded-full font-semibold text-base mb-1 shadow transition-all duration-200 cursor-pointer ${bg}`}
-          onClick={() => handleDayClick(key)}
-        >
-          {d}
-        </div>
-      );
-    }
-    months.push(
-      <div key={m} className="mb-4">
-        <div className="text-blue-900 font-bold text-center mb-2 text-lg tracking-wide drop-shadow">{month.toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
-        <div className="grid grid-cols-7 gap-1">{days}</div>
-      </div>
-    );
-  }
-
   // Helper: get all session dates for all candidates (4 weeks from their enrolledAt)
   function getSessionDates(session) {
     const dayMap = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5 };
@@ -139,7 +99,22 @@ function ExaminerDashboard() {
         <h2 className="text-3xl font-bold text-gray-800 mb-8">Examiner Dashboard</h2>
         <div className="bg-white rounded-2xl shadow-xl border border-blue-200 p-8 w-full max-w-2xl min-w-[380px]" style={{ minHeight: 500, maxHeight: 1000, overflowY: 'auto' }}>
           <div className="text-blue-700 font-extrabold text-2xl mb-4 text-center tracking-wide">My Calendar</div>
-          {months}
+          <div className="calendar-container">
+            <Calendar
+              onClickDay={handleDayClick}
+              tileClassName={({ date }) => {
+                const key = date.toISOString().slice(0, 10);
+                const isAvailable = calendarData.availability?.some(dt => dt.slice(0, 10) === key);
+                const hasExam = calendarData.allocations?.some(a => a.date.slice(0, 10) === key);
+                const hasTraining = calendarData.sessions?.some(s => s.enrolledStudents?.length && getSessionDates(s).includes(key));
+                if (hasExam && hasTraining) return 'bg-gradient-to-r from-green-500 to-red-500 text-white';
+                if (hasExam) return 'bg-green-500 text-white';
+                if (hasTraining) return 'bg-red-500 text-white';
+                if (isAvailable) return 'bg-yellow-200 text-blue-900';
+                return 'bg-blue-50 text-blue-700';
+              }}
+            />
+          </div>
           <div className="mt-4 text-center text-base text-blue-400">Green = Exam, Red = Training, Both = Green/Red, Yellow = Available</div>
         </div>
       </div>

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
-const TEMP_SESSION_IMG = 'https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=facearea&w=400&h=400&q=80';
+const TEMP_SESSION_IMG = '/images/drone.jpg';
 
 function TrainerDashboard() {
   const [sessions, setSessions] = useState([]);
@@ -55,17 +57,18 @@ function TrainerDashboard() {
   };
 
   // Helper: get next 4 dates for a given dayOfWeek
-  function getNextFourDates(dayOfWeek) {
+  function getNextFourDates(dayOfWeek, startDate) {
     const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
     const targetDay = dayMap[dayOfWeek];
     if (targetDay === undefined) return [];
     const dates = [];
-    let date = new Date(2025, 4, 3); // May 3, 2025
-    // Find the first occurrence
-    while (date.getDay() !== targetDay) {
-      date.setDate(date.getDate() + 1);
-    }
-    // Collect next 4 occurrences
+    let date = new Date(startDate); // Start from the enrollment date
+
+    // Adjust to the first occurrence of the target day
+    const daysToAdd = (targetDay - date.getDay() + 7) % 7;
+    date.setDate(date.getDate() + daysToAdd);
+
+    // Collect the next 4 occurrences
     for (let i = 0; i < 4; i++) {
       dates.push(new Date(date));
       date.setDate(date.getDate() + 7);
@@ -76,14 +79,23 @@ function TrainerDashboard() {
   // Build a map: date string (YYYY-MM-DD) -> session(s) with at least one enrolled student
   const highlightDates = {};
   sessions.forEach(session => {
-    if (session.dayOfWeek && session.enrolledStudents && session.enrolledStudents.length > 0) {
-      getNextFourDates(session.dayOfWeek).forEach(date => {
-        const key = date.toISOString().slice(0, 10);
-        if (!highlightDates[key]) highlightDates[key] = [];
-        highlightDates[key].push(session);
+    if (session.dayOfWeek && session.enrolledStudents) {
+      session.enrolledStudents.forEach(student => {
+        if (student.enrolledAt) {
+          getNextFourDates(session.dayOfWeek, student.enrolledAt).forEach(date => {
+            const key = date.toISOString().slice(0, 10);
+            if (!highlightDates[key]) highlightDates[key] = [];
+            highlightDates[key].push(session);
+          });
+        }
       });
     }
   });
+
+  // Add debugging logs to verify highlightDates and tileClassName behavior
+  useEffect(() => {
+    console.log('Highlight Dates:', highlightDates);
+  }, [highlightDates]);
 
   // Calendar click handler
   const handleCalendarClick = (date) => {
@@ -92,45 +104,6 @@ function TrainerDashboard() {
       setSelectedSession(highlightDates[key][0]);
       setShowSessionModal(true);
     }
-  };
-
-  // Render a plain calendar for the next 2 months
-  const renderCalendar = () => {
-    const now = new Date(2025, 4, 3);
-    const months = [];
-    for (let m = 0; m < 2; m++) {
-      const month = new Date(now.getFullYear(), now.getMonth() + m, 1);
-      const days = [];
-      const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-      for (let wd = 0; wd < 7; wd++) {
-        days.push(<div key={'wd' + wd} className="text-xs font-bold text-blue-700 text-center mb-1">{weekDays[wd]}</div>);
-      }
-      for (let b = 0; b < month.getDay(); b++) {
-        days.push(<div key={'b' + b}></div>);
-      }
-      for (let d = 1; d <= 31; d++) {
-        const day = new Date(month.getFullYear(), month.getMonth(), d);
-        if (day.getMonth() !== month.getMonth()) break;
-        const key = day.toISOString().slice(0, 10);
-        const isRed = !!highlightDates[key];
-        days.push(
-          <div
-            key={d}
-            className={`w-9 h-9 flex items-center justify-center rounded-full font-semibold text-base mb-1 shadow transition-all duration-200 cursor-pointer ${isRed ? 'bg-gradient-to-br from-red-500 to-red-700 text-white ring-2 ring-red-300 scale-105' : 'bg-blue-50 text-blue-700 hover:bg-blue-200'}`}
-            onClick={() => isRed && handleCalendarClick(day)}
-          >
-            {d}
-          </div>
-        );
-      }
-      months.push(
-        <div key={m} className="mb-4">
-          <div className="text-blue-900 font-bold text-center mb-2 text-lg tracking-wide drop-shadow">{month.toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
-          <div className="grid grid-cols-7 gap-1">{days}</div>
-        </div>
-      );
-    }
-    return months;
   };
 
   const handleLogout = () => {
@@ -241,7 +214,19 @@ function TrainerDashboard() {
         <div className="hidden md:flex flex-col items-center justify-start pt-10 pr-10 w-[440px]">
           <div className="bg-white rounded-3xl shadow-2xl border-2 border-blue-200 p-10 w-full" style={{ minHeight: 400, maxHeight: 700, overflowY: 'auto' }}>
             <div className="text-blue-700 font-extrabold text-2xl mb-6 text-center tracking-wide">Calendar</div>
-            {renderCalendar()}
+            <div className="calendar-container">
+              <Calendar
+                onClickDay={handleCalendarClick}
+                tileClassName={({ date }) => {
+                  const key = date.toISOString().slice(0, 10);
+                  if (highlightDates[key]) {
+                    console.log('Highlighting date:', key, 'with data:', highlightDates[key]);
+                    return 'border-2 border-red-500';
+                  }
+                  return null;
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>

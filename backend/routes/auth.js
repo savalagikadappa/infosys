@@ -1,4 +1,6 @@
 const express = require('express');
+const { getUserProfile } = require('../controllers/authController');
+const protect = require('../middleware/authMiddleware');
 const router = express.Router();
 
 const authController = require('../controllers/authController');

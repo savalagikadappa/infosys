@@ -1,1 +1,28 @@
 @import "tailwindcss";
+
+.dark-red-box {
+  border: 2px solid darkred;
+  border-radius: 50%; /* Make it a circle */
+  color: darkred;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80%;
+  width: 80%;
+  margin: auto;
+}
+
+.react-calendar__tile.dark-red-box {
+  border: 2px solid darkred;
+  border-radius: 50%; /* Make it a circle */
+  color: darkred;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  margin: auto;
+  background-color: rgba(139, 0, 0, 0.2); /* Add light red shading inside the circle */
+}

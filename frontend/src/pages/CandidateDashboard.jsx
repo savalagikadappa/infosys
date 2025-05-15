@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 const TEMP_PROFILE_IMG = 'https://randomuser.me/api/portraits/men/32.jpg';
-const TEMP_SESSION_IMG = 'https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=facearea&w=400&h=400&q=80';
+const TEMP_SESSION_IMG = '/images/drone.jpg';
 
 function CandidateDashboard() {
   const [availableSessions, setAvailableSessions] = useState([]);
@@ -16,6 +18,15 @@ function CandidateDashboard() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [examAllocations, setExamAllocations] = useState([]);
+  const [highlightDates, setHighlightDates] = useState({});
+  const [profile, setProfile] = useState({
+    name: '',
+    email: '',
+    profileImg: TEMP_PROFILE_IMG,
+    enrolledCount: 0,
+    examsUpcoming: 0,
+    progress: 0,
+  });
 
   useEffect(() => {
     fetchSessions();
@@ -89,44 +100,47 @@ function CandidateDashboard() {
     return false;
   };
 
-  // Helper: get next 4 dates for a given dayOfWeek
-  function getNextFourDates(dayOfWeek) {
+  // Optimized getNextFourDates function
+  function getNextFourDates(dayOfWeek, startDate) {
     const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
     const targetDay = dayMap[dayOfWeek];
     if (targetDay === undefined) return [];
+
     const dates = [];
-    let date = new Date(2025, 4, 3); // May 3, 2025
-    let count = 0;
-    // Find the first occurrence
-    while (date.getDay() !== targetDay) {
-      date.setDate(date.getDate() + 1);
-    }
-    // Collect next 4 occurrences
+    const start = new Date(startDate);
+
+    // Calculate the difference to the target day
+    const daysToAdd = (targetDay - start.getDay() + 7) % 7;
+    start.setDate(start.getDate() + daysToAdd);
+
+    // Collect the next 4 occurrences
     for (let i = 0; i < 4; i++) {
-      dates.push(new Date(date));
-      date.setDate(date.getDate() + 7);
+      dates.push(new Date(start));
+      start.setDate(start.getDate() + 7);
     }
+
     return dates;
   }
 
   // Build a map: date string (YYYY-MM-DD) -> session(s) with at least one enrolled session for candidate
-  const highlightDates = {};
-  enrolledSessions.forEach(session => {
-    if (session.dayOfWeek) {
-      getNextFourDates(session.dayOfWeek).forEach(date => {
-        const key = date.toISOString().slice(0, 10);
-        if (!highlightDates[key]) highlightDates[key] = [];
-        highlightDates[key].push(session);
-      });
-    }
-  });
-
-  // Add exam days to calendar highlights
-  examAllocations.forEach(exam => {
-    const key = exam.date.slice(0, 10);
-    if (!highlightDates[key]) highlightDates[key] = [];
-    highlightDates[key].push({ exam });
-  });
+  useEffect(() => {
+    const newHighlightDates = {};
+    enrolledSessions.forEach(session => {
+      if (session.dayOfWeek && session.enrolledStudents) {
+        session.enrolledStudents.forEach(student => {
+          if (student.enrolledAt) {
+            const dates = getNextFourDates(session.dayOfWeek, student.enrolledAt);
+            dates.forEach(date => {
+              const key = date.toISOString().slice(0, 10);
+              if (!newHighlightDates[key]) newHighlightDates[key] = [];
+              newHighlightDates[key].push(session);
+            });
+          }
+        });
+      }
+    });
+    setHighlightDates(newHighlightDates);
+  }, [enrolledSessions]);
 
   // Ensure only one modal is open at a time
   const openSessionModal = (session) => {
@@ -139,68 +153,17 @@ function CandidateDashboard() {
 
   // Calendar click handler
   const handleCalendarClick = (date) => {
-    const key = date.toISOString().slice(0, 10);
+    const key = date.toLocaleDateString('en-CA');
     if (highlightDates[key]) {
-      openSessionModal(highlightDates[key][0]);
+      openSessionModal(highlightDates[key][0]); // Open modal only for valid session dates
+    } else {
+      console.log('No session on this date:', key);
     }
   };
 
   // Helper to check if user is enrolled in a session
   const isSessionEnrolled = (session) => {
     return enrolledSessions.some((enrolled) => enrolled._id === session._id);
-  };
-
-  const renderCalendar = () => {
-    const now = new Date(2025, 4, 3);
-    const months = [];
-    for (let m = 0; m < 2; m++) {
-      const month = new Date(now.getFullYear(), now.getMonth() + m, 1);
-      const days = [];
-      const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-      for (let wd = 0; wd < 7; wd++) {
-        days.push(<div key={'wd' + wd} className="text-xs font-bold text-blue-700 text-center mb-1">{weekDays[wd]}</div>);
-      }
-      for (let b = 0; b < month.getDay(); b++) {
-        days.push(<div key={'b' + b}></div>);
-      }
-      for (let d = 1; d <= 31; d++) {
-        const day = new Date(month.getFullYear(), month.getMonth(), d);
-        if (day.getMonth() !== month.getMonth()) break;
-        const key = day.toISOString().slice(0, 10);
-        const isRed = highlightDates[key]?.some(item => item.dayOfWeek); // session
-        const isGreen = highlightDates[key]?.some(item => item.exam); // exam
-        let bg = 'bg-blue-50 text-blue-700 hover:bg-blue-200';
-        if (isRed && isGreen) bg = 'bg-gradient-to-r from-green-500 to-red-500 text-white';
-        else if (isGreen) bg = 'bg-green-500 text-white';
-        else if (isRed) bg = 'bg-red-500 text-white';
-        days.push(
-          <div
-            key={d}
-            className={`w-9 h-9 flex items-center justify-center rounded-full font-semibold text-base mb-1 shadow transition-all duration-200 cursor-pointer ${bg}`}
-            onClick={() => (isRed || isGreen) && handleCalendarClick(day)}
-          >
-            {d}
-          </div>
-        );
-      }
-      months.push(
-        <div key={m} className="mb-4">
-          <div className="text-blue-900 font-bold text-center mb-2 text-lg tracking-wide drop-shadow">{month.toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
-          <div className="grid grid-cols-7 gap-1">{days}</div>
-        </div>
-      );
-    }
-    return months;
-  };
-
-  // Profile summary (mocked for now)
-  const profile = {
-    name: 'Candidate Name',
-    email: 'candidate@email.com',
-    profileImg: TEMP_PROFILE_IMG,
-    enrolledCount: enrolledSessions.length,
-    examsUpcoming: 0,
-    progress: 0,
   };
 
   return (
@@ -294,7 +257,20 @@ function CandidateDashboard() {
               <div className="hidden lg:flex flex-col items-center justify-start pt-4 lg:sticky lg:top-0 lg:h-screen min-w-[420px] max-w-[700px]" style={{position:'fixed', right:0, top:0, height:'100vh', zIndex:30}}>
                 <div className="bg-white rounded-2xl shadow-xl border border-blue-200 p-8 w-full max-w-2xl min-w-[380px]" style={{ minHeight: 500, maxHeight: 1000, overflowY: 'auto' }}>
                   <div className="text-blue-700 font-extrabold text-2xl mb-4 text-center tracking-wide">My Schedule</div>
-                  {renderCalendar()}
+                  <div className="calendar-container">
+                    <Calendar
+                      onClickDay={handleCalendarClick}
+                      tileClassName={({ date }) => {
+                        // Convert the date to a local date string (YYYY-MM-DD)
+                        const key = date.toLocaleDateString('en-CA'); // 'en-CA' ensures YYYY-MM-DD format
+
+                        if (highlightDates[key]) {
+                          return 'dark-red-box'; // Apply a specific CSS class for session dates
+                        }
+                        return null; // No styling for non-highlighted dates
+                      }}
+                    />
+                  </div>
                   <div className="mt-4 text-center text-base text-blue-400">Red = Your enrolled sessions</div>
                 </div>
               </div>
@@ -306,7 +282,20 @@ function CandidateDashboard() {
             <div className="flex flex-col lg:hidden items-center justify-start mt-6">
               <div className="bg-white rounded-2xl shadow-xl border border-blue-200 p-6 w-full max-w-md min-w-[220px]" style={{ minHeight: 320, maxHeight: 800, overflowY: 'auto' }}>
                 <div className="text-blue-700 font-extrabold text-lg mb-2 text-center tracking-wide">My Schedule</div>
-                {renderCalendar()}
+                <div className="calendar-container">
+                  <Calendar
+                    onClickDay={handleCalendarClick}
+                    tileClassName={({ date }) => {
+                      // Convert the date to a local date string (YYYY-MM-DD)
+                      const key = date.toLocaleDateString('en-CA'); // 'en-CA' ensures YYYY-MM-DD format
+
+                      if (highlightDates[key]) {
+                        return 'dark-red-box'; // Apply a specific CSS class for session dates
+                      }
+                      return null; // No styling for non-highlighted dates
+                    }}
+                  />
+                </div>
                 <div className="mt-2 text-center text-xs text-blue-400">Red = Your enrolled sessions</div>
               </div>
             </div>

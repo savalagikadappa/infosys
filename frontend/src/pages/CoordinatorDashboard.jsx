@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const TEMP_SESSION_IMG = '/images/drone.jpg';
+
 function CoordinatorDashboard() {
   const navigate = useNavigate();
   const handleLogout = () => {

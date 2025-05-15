@@ -48,10 +48,12 @@ exports.enrollInSession = async (req, res) => {
     const userId = req.user.userId;
     const session = await TrainingSession.findById(sessionId);
     if (!session) return res.status(404).json({ message: 'Session not found' });
+
     // Prevent double enrollment
     if (session.enrolledStudents.some(e => e.user.toString() === userId)) {
       return res.status(400).json({ message: 'Already enrolled' });
     }
+
     // Conflict detection by dayOfWeek
     const conflict = await TrainingSession.findOne({
       'enrolledStudents.user': userId,
@@ -60,12 +62,33 @@ exports.enrollInSession = async (req, res) => {
     if (conflict) {
       return res.status(400).json({ message: `You already have a session on ${session.dayOfWeek} and can't book another on the same day.` });
     }
-    session.enrolledStudents.push({ user: userId, enrolledAt: new Date() });
+
+    // Use the system date at the time of enrollment
+    const systemDate = new Date();
+    const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+    const targetDay = dayMap[session.dayOfWeek];
+    const dates = [];
+    let date = new Date(systemDate);
+
+    // Find the first occurrence of the target day
+    while (date.getDay() !== targetDay) {
+      date.setDate(date.getDate() + 1);
+    }
+
+    // Collect the next 4 occurrences
+    for (let i = 0; i < 4; i++) {
+      dates.push(new Date(date));
+      date.setDate(date.getDate() + 7);
+    }
+
+    session.enrolledStudents.push({ user: userId, enrolledAt: systemDate, bookedDates: dates });
     await session.save();
+
     // Emit real-time update
     const io = req.app.get('io');
     if (io) io.emit('session-updated');
-    res.json({ message: 'Enrolled successfully' });
+
+    res.json({ message: 'Enrolled successfully', bookedDates: dates });
   } catch (err) {
     res.status(500).json({ message: 'Error enrolling', error: err });
   }
@@ -91,7 +114,17 @@ exports.getMyEnrolledSessions = async (req, res) => {
       .populate('createdBy', 'email')
       .populate('enrolledStudents.user', 'email')
       .sort({ createdAt: 1 });
-    res.json(sessions);
+
+    // Include bookedDates in the response
+    const sessionsWithBookedDates = sessions.map(session => {
+      const enrolledStudent = session.enrolledStudents.find(e => e.user.toString() === req.user.userId);
+      return {
+        ...session.toObject(),
+        bookedDates: enrolledStudent ? enrolledStudent.bookedDates : []
+      };
+    });
+
+    res.json(sessionsWithBookedDates);
   } catch (err) {
     res.status(500).json({ message: 'Error fetching enrolled sessions', error: err });
   }

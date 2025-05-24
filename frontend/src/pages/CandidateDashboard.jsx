@@ -3,9 +3,9 @@ import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-
-const TEMP_PROFILE_IMG = 'https://randomuser.me/api/portraits/men/32.jpg';
-const TEMP_SESSION_IMG = '/images/drone.jpg';
+import { getNextFourDates } from '../utils/dateHelpers';
+import { TEMP_PROFILE_IMG, TEMP_SESSION_IMG } from '../constants';
+import { FaUserCircle, FaChalkboardTeacher, FaCalendarAlt, FaSignOutAlt, FaBars } from 'react-icons/fa';
 
 function CandidateDashboard() {
   const [availableSessions, setAvailableSessions] = useState([]);
@@ -27,6 +27,8 @@ function CandidateDashboard() {
     examsUpcoming: 0,
     progress: 0,
   });
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [popupData, setPopupData] = useState(null);
 
   useEffect(() => {
     fetchSessions();
@@ -51,7 +53,6 @@ function CandidateDashboard() {
       const res = await fetch('/api/examiner/candidate-exams', { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
-        // Defensive: filter only exams for this candidate (should be redundant, but safe)
         const myEmail = localStorage.getItem('email');
         const filtered = data.filter(exam => !myEmail || !exam.candidate || exam.candidate.email === myEmail);
         setExamAllocations(filtered);
@@ -84,7 +85,7 @@ function CandidateDashboard() {
     navigate('/');
   };
 
-  const today = new Date(2025, 4, 3); 
+  const today = new Date(2025, 4, 3);
   const calendarWeeks = [];
   for (let i = 0; i < 4; i++) {
     const weekStart = new Date(today);
@@ -100,29 +101,6 @@ function CandidateDashboard() {
     return false;
   };
 
-  // Optimized getNextFourDates function
-  function getNextFourDates(dayOfWeek, startDate) {
-    const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
-    const targetDay = dayMap[dayOfWeek];
-    if (targetDay === undefined) return [];
-
-    const dates = [];
-    const start = new Date(startDate);
-
-    // Calculate the difference to the target day
-    const daysToAdd = (targetDay - start.getDay() + 7) % 7;
-    start.setDate(start.getDate() + daysToAdd);
-
-    // Collect the next 4 occurrences
-    for (let i = 0; i < 4; i++) {
-      dates.push(new Date(start));
-      start.setDate(start.getDate() + 7);
-    }
-
-    return dates;
-  }
-
-  // Build a map: date string (YYYY-MM-DD) -> session(s) with at least one enrolled session for candidate
   useEffect(() => {
     const newHighlightDates = {};
     enrolledSessions.forEach(session => {
@@ -131,7 +109,7 @@ function CandidateDashboard() {
           if (student.enrolledAt) {
             const dates = getNextFourDates(session.dayOfWeek, student.enrolledAt);
             dates.forEach(date => {
-              const key = date.toISOString().slice(0, 10);
+              const key = date.toLocaleDateString('en-CA');
               if (!newHighlightDates[key]) newHighlightDates[key] = [];
               newHighlightDates[key].push(session);
             });
@@ -142,223 +120,233 @@ function CandidateDashboard() {
     setHighlightDates(newHighlightDates);
   }, [enrolledSessions]);
 
-  // Ensure only one modal is open at a time
   const openSessionModal = (session) => {
-    setShowModal(false); // close any open modal first
+    setShowModal(false);
     setTimeout(() => {
       setSelectedSession(session);
       setShowModal(true);
     }, 0);
   };
 
-  // Calendar click handler
   const handleCalendarClick = (date) => {
     const key = date.toLocaleDateString('en-CA');
     if (highlightDates[key]) {
-      openSessionModal(highlightDates[key][0]); // Open modal only for valid session dates
+      setPopupData({
+        date: key,
+        sessions: highlightDates[key],
+      });
     } else {
       console.log('No session on this date:', key);
     }
   };
 
-  // Helper to check if user is enrolled in a session
+  const closePopup = () => {
+    setPopupData(null);
+  };
+
   const isSessionEnrolled = (session) => {
     return enrolledSessions.some((enrolled) => enrolled._id === session._id);
   };
 
-  return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gradient-to-br from-blue-50 to-blue-200">
-      {/* Sidebar / Topbar for mobile */}
-      <div className="md:hidden flex items-center justify-between bg-white shadow px-4 py-3 border-b border-blue-100 sticky top-0 z-30">
-        <div className="flex items-center gap-2">
-          <img src={profile.profileImg} alt="Profile" className="w-10 h-10 rounded-full border-2 border-blue-200 shadow min-w-10" />
-          <div className="flex flex-col">
-            <span className="font-bold text-blue-900">{profile.name}</span>
-            <button onClick={() => setActiveTab('profile')} className="text-blue-500 text-sm underline">View Profile</button>
-          </div>
+  const renderSessionCard = (session, isEnrolled) => (
+    <div
+      key={session._id}
+      className="bg-white rounded-lg shadow-md p-4 sm:p-6 md:p-8 flex flex-col gap-4 w-full max-w-full h-auto text-left mx-auto relative z-10 shadow-blue-500/90 shadow-lg"
+    >
+      <img
+        src={TEMP_SESSION_IMG}
+        alt="Session"
+        className="w-32 h-32 object-cover rounded-md"
+      />
+      <div className="flex flex-col flex-1 text-left pl-0 sm:pl-4 md:pl-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between">
+          <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-800">{session.title}</h2>
+          {isEnrolled ? (
+            <span className="bg-green-200 text-green-900 text-xs sm:text-sm md:text-base font-semibold mt-2 md:mt-0 mr-0 md:mr-2 px-2 md:px-3 py-1 rounded">Enrolled</span>
+          ) : (
+            <button
+              className="bg-blue-300 text-blue-900 font-bold px-3 sm:px-4 md:px-5 py-1 sm:py-2 md:py-3 rounded-lg shadow-lg hover:bg-blue-400 transition"
+              onClick={() => handleEnroll(session._id)}
+            >
+              Enroll
+            </button>
+          )}
         </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-blue-700 focus:outline-none text-2xl">☰</button>
+        <p className="mt-2 sm:mt-3 md:mt-4 text-xs sm:text-sm md:text-base text-gray-800">{session.description}</p>
+        <div className="mt-3 sm:mt-4 md:mt-5">
+          <p className="text-gray-800 text-xs sm:text-sm md:text-base flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 sm:w-4 md:w-5 h-3 sm:h-4 md:h-5 mr-2">
+              <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17.93A8.59 8.59 0 0110 18c-.08 0-.16 0-.24 0a8.59 8.59 0 01-2.93-.07A8.05 8.05 0 005 17v1a1 1 0 001 1h8a1 1 0 001-1v-1a8.05 8.05 0 00-.07-.07z" />
+            </svg>
+            Instructor: {session.createdBy?.email}
+          </p>
+          <p className="text-gray-800 text-xs sm:text-sm md:text-base flex items-center mt-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 sm:w-4 md:w-5 h-3 sm:h-4 md:h-5 mr-2">
+              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+            </svg>
+            {session.dayOfWeek || 'TBA'}
+          </p>
+          <p className="text-gray-800 text-xs sm:text-sm md:text-base flex items-center mt-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 sm:w-4 md:w-5 h-3 sm:h-4 md:h-5 mr-2">
+              <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+            </svg>
+            {session.enrolledStudents?.length || 0} students enrolled
+          </p>
+        </div>
+        <hr className="mt-4 sm:mt-5 md:mt-6 border-gray-400" />
+        <span className="text-gray-700 text-xs sm:text-sm md:text-base">Created: {new Date(session.createdAt).toLocaleDateString()}</span>
       </div>
-      <aside className={`fixed md:relative z-40 top-0 left-0 h-full bg-white shadow-xl border-r border-blue-100 flex flex-col items-center py-8 px-4 min-h-screen transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:w-[250px] md:min-w-[220px] md:max-w-[260px] md:flex md:static md:translate-x-0`} style={{ position: 'fixed', top: 0, left: 0, height: '100vh', overflow: 'hidden', zIndex: 40 }}>
-        <button className="md:hidden absolute top-4 right-4 text-blue-700 text-2xl" onClick={() => setSidebarOpen(false)}>×</button>
-        <img src={profile.profileImg} alt="Profile" className="w-20 h-20 rounded-full border-4 border-blue-200 shadow mb-3 min-w-20" />
-        <div className="font-bold text-lg text-blue-900 mb-1 text-center break-words">{profile.name}</div>
-        <div className="text-blue-500 text-xs mb-8 text-center break-words">{profile.email}</div>
-        <nav className="flex flex-col gap-2 w-full mb-8">
-          <button onClick={() => { setActiveTab('dashboard'); setSidebarOpen(false); }} className={`w-full text-left px-5 py-3 rounded-lg font-semibold text-base transition ${activeTab === 'dashboard' ? 'bg-blue-100 text-blue-700 shadow' : 'text-blue-700 hover:bg-blue-50'}`}>Dashboard</button>
-          <button onClick={() => { setActiveTab('exams'); setSidebarOpen(false); }} className={`w-full text-left px-5 py-3 rounded-lg font-semibold text-base transition ${activeTab === 'exams' ? 'bg-blue-100 text-blue-700 shadow' : 'text-blue-700 hover:bg-blue-50'}`}>Exams</button>
-          <button onClick={() => { setActiveTab('profile'); setSidebarOpen(false); }} className={`w-full text-left px-5 py-3 rounded-lg font-semibold text-base transition ${activeTab === 'profile' ? 'bg-blue-100 text-blue-700 shadow' : 'text-blue-700 hover:bg-blue-50'}`}>Profile</button>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col md:flex-row bg-white font-sans">
+      {/* Hamburger Menu for Sidebar (Below 1100px) */}
+      <button
+        className="lg:hidden fixed top-4 left-4 z-50 bg-blue-500 text-white p-2 rounded-full shadow-lg"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+      >
+        <FaBars size={24} />
+      </button>
+
+      {/* Sidebar */}
+      <div
+        className={`fixed top-0 left-0 h-full bg-gradient-to-b from-blue-100 via-blue-50 to-white shadow-2xl border-r border-blue-300 flex flex-col items-center py-10 px-6 w-[260px] z-40 transition-transform transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}
+      >
+        <img src={profile.profileImg} alt="Profile" className="w-24 h-24 rounded-full border-4 border-blue-300 shadow-lg mb-4" />
+        <div className="font-extrabold text-2xl text-blue-800 mb-1 text-center font-serif tracking-wide">{profile.name}</div>
+        <div className="text-blue-600 text-sm mb-10 text-center font-medium">{profile.email}</div>
+        <nav className="flex flex-col gap-4 w-full mb-10">
+          <button onClick={() => setActiveTab('dashboard')} className={`w-full text-left px-6 py-3 rounded-2xl font-bold text-lg transition tracking-wide flex items-center gap-3 ${activeTab === 'dashboard' ? 'bg-white text-blue-800 shadow-lg' : 'text-blue-600 hover:bg-blue-100 hover:shadow-md'}`}><FaChalkboardTeacher /> Dashboard</button>
+          <button onClick={() => setActiveTab('exams')} className={`w-full text-left px-6 py-3 rounded-2xl font-bold text-lg transition tracking-wide flex items-center gap-3 ${activeTab === 'exams' ? 'bg-white text-blue-800 shadow-lg' : 'text-blue-600 hover:bg-blue-100 hover:shadow-md'}`}><FaCalendarAlt /> Exams</button>
+          <button onClick={() => setActiveTab('profile')} className={`w-full text-left px-6 py-3 rounded-2xl font-bold text-lg transition tracking-wide flex items-center gap-3 ${activeTab === 'profile' ? 'bg-white text-blue-800 shadow-lg' : 'text-blue-600 hover:bg-blue-100 hover:shadow-md'}`}><FaUserCircle /> Profile</button>
         </nav>
-        <button onClick={handleLogout} className="mt-auto mb-8 w-11/12 bg-gradient-to-r from-red-500 to-red-700 text-white font-bold px-4 py-3 rounded-xl shadow hover:from-red-600 hover:to-red-800 transition">Logout</button>
-      </aside>
-      <div className="flex-1 md:ml-0 flex flex-col items-stretch min-w-[320px] pl-8 md:pl-20 md:ml-[250px]">
-        <main className="flex-1 p-0 m-0 overflow-y-auto">
-          {activeTab === 'dashboard' && (
-            <div className="flex flex-col lg:flex-row w-full m-0 p-0 gap-0 lg:gap-8 items-stretch">
-              <div className="w-full lg:w-2/3 min-w-[320px] max-w-full m-0 p-0 flex flex-col">
-                <h2 className="text-3xl font-extrabold text-blue-900 mb-6 tracking-tight drop-shadow-lg text-center md:text-left">Training Sessions</h2>
-                <section className="mb-8">
-                  <h3 className="text-2xl font-bold text-blue-800 mb-4 tracking-wide text-center md:text-left">Enrolled Sessions</h3>
-                  <div className="flex flex-col gap-6">
-                    {loading ? <div>Loading...</div> : enrolledSessions.length === 0 ? <div className="text-blue-700">No enrolled sessions.</div> : enrolledSessions.map(s => (
-                      <div key={s._id} className="group bg-white/90 hover:bg-blue-50 border border-blue-200 rounded-2xl shadow-lg flex flex-col sm:flex-row transition-all duration-200 overflow-hidden min-w-0 min-h-[280px] md:min-h-[340px] max-w-full md:max-w-2xl w-full md:w-[520px]">
-                        <div className="w-full sm:w-1/3 flex-shrink-0 flex items-center justify-center p-4">
-                          <img src={TEMP_SESSION_IMG} alt="Session" className="w-full h-40 md:h-56 object-cover rounded-xl" style={{maxWidth:'150px'}} />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-3 p-6 justify-center text-base md:text-lg lg:text-xl">
-                          <div className="flex items-center gap-2 mb-1 text-base md:text-lg lg:text-xl">
-                            <span className="inline-block w-3 h-3 rounded-full bg-green-400 shadow" title="Online"></span>
-                            <span className="font-bold text-blue-600 uppercase tracking-widest">{s.mode === 'online' ? 'Online' : 'Offline'}</span>
-                          </div>
-                          <div className="font-extrabold text-xl md:text-2xl lg:text-3xl text-blue-900 truncate">{s.title}</div>
-                          <div className="text-blue-800 font-medium truncate text-base md:text-lg lg:text-xl">{s.description}</div>
-                          <div className="flex flex-wrap gap-2 text-sm md:text-base lg:text-lg text-blue-700 font-semibold">
-                            <span>Trainer: <span className="font-bold text-blue-900">{s.createdBy?.email}</span></span>
-                            <span>Date: <span className="font-bold text-blue-900">{s.dayOfWeek || 'TBA'}</span></span>
-                            <span>Enrolled: <span className="font-bold text-blue-900">{s.enrolledStudents?.length || 0}</span></span>
-                          </div>
-                          <div className="flex gap-2 mt-auto text-base md:text-lg lg:text-xl">
-                            <span className="px-3 py-1 rounded-xl bg-green-100 text-green-900 font-bold text-xs shadow">Enrolled</span>
-                            {s.mode === 'offline' && <span className="px-2 py-1 rounded-xl bg-gray-200 text-gray-700 font-bold text-xs">Offline</span>}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-                <section>
-                  <h3 className="text-2xl font-bold text-blue-800 mb-4 tracking-wide text-center md:text-left">Available Training Sessions</h3>
-                  <div className="flex flex-col gap-6">
-                    {loading ? <div>Loading...</div> : availableSessions.length === 0 ? <div className="text-blue-700">No available sessions.</div> : availableSessions.filter(s => !isSessionEnrolled(s)).map(s => (
-                      <div key={s._id} className="group bg-white/90 hover:bg-blue-50 border border-blue-200 rounded-2xl shadow-lg flex flex-col sm:flex-row transition-all duration-200 overflow-hidden min-w-0 min-h-[280px] md:min-h-[340px] max-w-full md:max-w-2xl w-full md:w-[520px]">
-                        <div className="w-full sm:w-1/3 flex-shrink-0 flex items-center justify-center p-4">
-                          <img src={TEMP_SESSION_IMG} alt="Session" className="w-full h-40 md:h-56 object-cover rounded-xl" style={{maxWidth:'150px'}} />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-3 p-6 justify-center text-base md:text-lg lg:text-xl">
-                          <div className="flex items-center gap-2 mb-1 text-base md:text-lg lg:text-xl">
-                            <span className="inline-block w-3 h-3 rounded-full bg-green-400 shadow" title="Online"></span>
-                            <span className="font-bold text-blue-600 uppercase tracking-widest">{s.mode === 'online' ? 'Online' : 'Offline'}</span>
-                          </div>
-                          <div className="font-extrabold text-xl md:text-2xl lg:text-3xl text-blue-900 truncate">{s.title}</div>
-                          <div className="text-blue-800 font-medium truncate text-base md:text-lg lg:text-xl">{s.description}</div>
-                          <div className="flex flex-wrap gap-2 text-sm md:text-base lg:text-lg text-blue-700 font-semibold">
-                            <span>Trainer: <span className="font-bold text-blue-900">{s.createdBy?.email}</span></span>
-                            <span>Date: <span className="font-bold text-blue-900">{s.dayOfWeek || 'TBA'}</span></span>
-                            <span>Enrolled: <span className="font-bold text-blue-900">{s.enrolledStudents?.length || 0}</span></span>
-                          </div>
-                          <div className="flex gap-2 mt-auto text-base md:text-lg lg:text-xl">
-                            <button className="bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold text-xs px-4 py-1 rounded-xl shadow hover:from-blue-700 hover:to-blue-600 transition" onClick={() => handleEnroll(s._id)}>Enroll</button>
-                            {s.mode === 'offline' && <span className="px-2 py-1 rounded-xl bg-gray-200 text-gray-700 font-bold text-xs">Offline</span>}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </div>
-              {/* Calendar: fixed on right for large screens, at bottom for small screens */}
-              <div className="hidden lg:flex flex-col items-center justify-start pt-4 lg:sticky lg:top-0 lg:h-screen min-w-[420px] max-w-[700px]" style={{position:'fixed', right:0, top:0, height:'100vh', zIndex:30}}>
-                <div className="bg-white rounded-2xl shadow-xl border border-blue-200 p-8 w-full max-w-2xl min-w-[380px]" style={{ minHeight: 500, maxHeight: 1000, overflowY: 'auto' }}>
-                  <div className="text-blue-700 font-extrabold text-2xl mb-4 text-center tracking-wide">My Schedule</div>
-                  <div className="calendar-container">
-                    <Calendar
-                      onClickDay={handleCalendarClick}
-                      tileClassName={({ date }) => {
-                        // Convert the date to a local date string (YYYY-MM-DD)
-                        const key = date.toLocaleDateString('en-CA'); // 'en-CA' ensures YYYY-MM-DD format
-
-                        if (highlightDates[key]) {
-                          return 'dark-red-box'; // Apply a specific CSS class for session dates
-                        }
-                        return null; // No styling for non-highlighted dates
-                      }}
-                    />
-                  </div>
-                  <div className="mt-4 text-center text-base text-blue-400">Red = Your enrolled sessions</div>
-                </div>
-              </div>
-              {/* Calendar at bottom for small screens */}
-            </div>
-          )}
-          {/* Calendar at bottom for small screens */}
-          {activeTab === 'dashboard' && (
-            <div className="flex flex-col lg:hidden items-center justify-start mt-6">
-              <div className="bg-white rounded-2xl shadow-xl border border-blue-200 p-6 w-full max-w-md min-w-[220px]" style={{ minHeight: 320, maxHeight: 800, overflowY: 'auto' }}>
-                <div className="text-blue-700 font-extrabold text-lg mb-2 text-center tracking-wide">My Schedule</div>
-                <div className="calendar-container">
-                  <Calendar
-                    onClickDay={handleCalendarClick}
-                    tileClassName={({ date }) => {
-                      // Convert the date to a local date string (YYYY-MM-DD)
-                      const key = date.toLocaleDateString('en-CA'); // 'en-CA' ensures YYYY-MM-DD format
-
-                      if (highlightDates[key]) {
-                        return 'dark-red-box'; // Apply a specific CSS class for session dates
-                      }
-                      return null; // No styling for non-highlighted dates
-                    }}
-                  />
-                </div>
-                <div className="mt-2 text-center text-xs text-blue-400">Red = Your enrolled sessions</div>
-              </div>
-            </div>
-          )}
-          {activeTab === 'exams' && (
-            <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
-              <h2 className="text-3xl font-extrabold text-blue-900 mb-6 tracking-tight drop-shadow-lg">Exams</h2>
-              {examAllocations.length === 0 ? (
-                <div className="text-blue-700 text-lg font-semibold">No exams for you</div>
-              ) : (
-                <ul className="text-blue-800 text-lg font-semibold">
-                  {examAllocations.map((exam, idx) => (
-                    <li key={exam._id || idx}>
-                      {exam.date.slice(0, 10)} | Session: {exam.session?.title || 'N/A'} | Examiner: {exam.examiner?.email || 'N/A'}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          {activeTab === 'profile' && (
-            <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
-              <div className="bg-white rounded-3xl shadow-xl border border-blue-200 p-10 flex flex-col items-center max-w-md w-full">
-                <img src={profile.profileImg} alt="Profile" className="w-28 h-28 rounded-full border-4 border-blue-200 shadow mb-4" />
-                <div className="font-bold text-2xl text-blue-900 mb-1">{profile.name}</div>
-                <div className="text-blue-500 text-base mb-4">{profile.email}</div>
-                <div className="flex flex-col gap-2 w-full mt-2">
-                  <div className="flex justify-between text-blue-700 font-semibold text-lg">
-                    <span>Courses Enrolled</span>
-                    <span>{profile.enrolledCount}</span>
-                  </div>
-                  <div className="flex justify-between text-blue-700 font-semibold text-lg">
-                    <span>Upcoming Exams</span>
-                    <span>{profile.examsUpcoming}</span>
-                  </div>
-                  <div className="flex justify-between text-blue-700 font-semibold text-lg">
-                    <span>Overall Progress</span>
-                    <span>{profile.progress}%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </main>
+        <button onClick={handleLogout} className="mt-auto mb-8 w-11/12 bg-white text-blue-800 font-bold px-6 py-3 rounded-2xl shadow-lg hover:bg-blue-100 hover:shadow-xl transition tracking-wide flex items-center justify-center gap-3"><FaSignOutAlt /> Logout</button>
       </div>
-      {/* Modal for session details */}
-      <Modal isOpen={!!showModal} onRequestClose={() => setShowModal(false)} ariaHideApp={false}>
-        {selectedSession && (
-          <div className="flex flex-col gap-3 p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-100 shadow-2xl border-2 border-blue-200 min-w-[320px] max-w-lg mx-auto">
-            <div className="text-2xl font-extrabold text-blue-900 mb-1 text-center tracking-tight">{selectedSession.title}</div>
-            <div className="flex flex-wrap gap-2 justify-center text-blue-700 font-medium text-base mb-1">
-              <span>Day: <span className="font-bold">{selectedSession.dayOfWeek}</span></span>
-              <span>| Mode: <span className="font-bold">{selectedSession.mode}</span></span>
-              <span>| Trainer: <span className="font-bold">{selectedSession.createdBy?.email}</span></span>
-            </div>
-            <div className="text-slate-700 text-base leading-relaxed text-center mb-2">{selectedSession.description}</div>
-            <button className="mt-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold text-base px-6 py-2 rounded-xl shadow hover:from-blue-700 hover:to-blue-600 transition self-center" onClick={() => setShowModal(false)}>Close</button>
+
+      {/* Main Content */}
+      <div className="flex-1 px-4 sm:px-6 md:px-8 overflow-y-auto md:ml-[260px]">
+        {activeTab === 'dashboard' && (
+          <div>
+            <h2 className="text-3xl font-extrabold text-blue-900 mb-6 tracking-tight text-center font-serif">Training Sessions</h2>
+            <section className="mb-8">
+              <h3 className="text-2xl font-bold text-blue-800 mb-4 tracking-wide text-center font-serif">Enrolled Sessions</h3>
+              <div className="flex flex-col gap-4">
+                {loading ? <div>Loading...</div> : enrolledSessions.length === 0 ? <div className="text-blue-700">No enrolled sessions.</div> : enrolledSessions.map((session) => renderSessionCard(session, true))}
+              </div>
+            </section>
+            <section>
+              <h3 className="text-2xl font-bold text-blue-800 mb-4 tracking-wide text-center font-serif">Available Training Sessions</h3>
+              <div className="flex flex-col gap-4">
+                {loading ? <div>Loading...</div> : availableSessions.length === 0 ? <div className="text-blue-700">No available sessions.</div> : availableSessions.filter((s) => !isSessionEnrolled(s)).map((session) => renderSessionCard(session, false))}
+              </div>
+            </section>
           </div>
         )}
-      </Modal>
+        {activeTab === 'exams' && (
+          <div className="flex flex-col items-center justify-center h-full min-h-[400px] py-14">
+            <h2 className="text-4xl font-extrabold text-blue-900 mb-10 tracking-tight font-serif">Exams</h2>
+            {examAllocations.length === 0 ? (
+              <div className="text-blue-700 text-xl font-semibold">No exams for you</div>
+            ) : (
+              <ul className="text-blue-800 text-xl font-semibold bg-blue-50 rounded-2xl p-8 w-full max-w-2xl shadow border border-blue-100">
+                {examAllocations.map((exam, idx) => (
+                  <li key={exam._id || idx} className="mb-3">
+                    {exam.date.slice(0, 10)} | Session: {exam.session?.title || 'N/A'} | Examiner: {exam.examiner?.email || 'N/A'}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        {activeTab === 'profile' && (
+          <div className="flex flex-col items-center justify-center h-full min-h-[400px] py-14">
+            <div className="bg-blue-50 rounded-3xl shadow-2xl border border-blue-100 p-12 flex flex-col items-center max-w-xl w-full">
+              <img src={profile.profileImg} alt="Profile" className="w-32 h-32 rounded-full border-2 border-blue-100 shadow mb-6" />
+              <div className="font-extrabold text-3xl text-blue-900 mb-2 font-serif">{profile.name}</div>
+              <div className="text-blue-400 text-lg mb-6">{profile.email}</div>
+              <div className="flex flex-col gap-6 w-full mt-2">
+                <div className="flex justify-between text-blue-700 font-semibold text-xl">
+                  <span>Courses Enrolled</span>
+                  <span>{profile.enrolledCount}</span>
+                </div>
+                <div className="flex justify-between text-blue-700 font-semibold text-xl">
+                  <span>Upcoming Exams</span>
+                  <span>{profile.examsUpcoming}</span>
+                </div>
+                <div className="flex justify-between text-blue-700 font-semibold text-xl">
+                  <span>Overall Progress</span>
+                  <span>{profile.progress}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Calendar Toggle for Small Screens */}
+      <button
+        className={`md:hidden fixed top-4 right-4 z-50 bg-blue-500 text-white p-2 rounded-full shadow-lg ${showCalendar ? 'hidden' : ''}`}
+        onClick={() => setShowCalendar(true)}
+      >
+        Show Calendar
+      </button>
+
+      {/* Calendar Section */}
+      <div
+        className={`fixed top-0 left-0 w-full h-screen bg-white z-50 transition-transform transform ${showCalendar ? 'translate-y-0' : '-translate-y-full'} lg:relative lg:translate-y-0 lg:w-[300px] lg:h-auto lg:bg-blue-50 lg:shadow-2xl lg:border-l lg:border-blue-100 lg:p-4 lg:sm:p-6 lg:flex lg:flex-col lg:items-center lg:z-30 lg:overflow-y-auto`}
+      >
+        {showCalendar && (
+          <button
+            className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full shadow-lg lg:hidden"
+            onClick={() => setShowCalendar(false)}
+          >
+            Close
+          </button>
+        )}
+        <div className="text-blue-900 font-extrabold text-2xl mb-4 text-center tracking-wide font-serif">My Schedule</div>
+        <div className="calendar-container w-full flex justify-center items-center">
+          <Calendar
+            onClickDay={handleCalendarClick}
+            tileClassName={({ date }) => {
+              const key = date.toLocaleDateString('en-CA');
+              if (highlightDates[key]) {
+                return 'dark-red-box';
+              }
+              return null;
+            }}
+            className="max-w-[500px] max-h-[500px] w-full h-auto"
+          />
+        </div>
+        {/* Updated legend to include a larger dark red circle with shading */}
+        <div className="mt-4 text-center text-sm text-blue-400 flex items-center justify-center gap-2">
+          <div className="w-6 h-6 border-2 border-red-900 bg-gradient-to-br from-red-900 to-white rounded-full"></div>
+          <span>Your enrolled sessions</span>
+        </div>
+      </div>
+
+      {/* Popup Component */}
+      {popupData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-11/12 max-w-md">
+            <h2 className="text-xl font-bold text-blue-800 mb-4">Sessions on {popupData.date}</h2>
+            <ul className="space-y-2">
+              {popupData.sessions.map((session, index) => (
+                <li key={index} className="p-3 bg-blue-50 rounded-lg shadow-md">
+                  <p className="text-blue-900 font-semibold">{session.title || 'Untitled Session'}</p>
+                  <p className="text-sm text-blue-700">{session.description || 'No description available.'}</p>
+                </li>
+              ))}
+            </ul>
+            <button
+              className="mt-4 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600"
+              onClick={closePopup}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

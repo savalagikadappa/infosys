@@ -3,8 +3,8 @@ import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-
-const TEMP_SESSION_IMG = '/images/drone.jpg';
+import { getNextFourDates } from '../utils/dateHelpers';
+import { TEMP_SESSION_IMG } from '../constants';
 
 function TrainerDashboard() {
   const [sessions, setSessions] = useState([]);
@@ -56,34 +56,6 @@ function TrainerDashboard() {
     }
     setLoading(false);
   };
-
-  // Robust getNextFourDates: always starts from the later of today or startDate, works for all years/months
-  function getNextFourDates(dayOfWeek, startDate) {
-    const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
-    const targetDay = dayMap[dayOfWeek];
-    if (targetDay === undefined) return [];
-
-    // Use the later of today or startDate
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const base = new Date(startDate);
-    base.setHours(0, 0, 0, 0);
-    let date = base > today ? new Date(base) : new Date(today);
-
-    // Find the first occurrence of the target day on or after base date
-    const dayDiff = (targetDay - date.getDay() + 7) % 7;
-    if (dayDiff > 0) {
-      date.setDate(date.getDate() + dayDiff);
-    }
-
-    // Collect the next 4 occurrences
-    const dates = [];
-    for (let i = 0; i < 4; i++) {
-      dates.push(new Date(date));
-      date.setDate(date.getDate() + 7);
-    }
-    return dates;
-  }
 
   // Use local date string (YYYY-MM-DD) for highlightDates keys and calendar
   useEffect(() => {

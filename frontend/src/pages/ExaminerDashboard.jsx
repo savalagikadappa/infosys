@@ -3,8 +3,8 @@ import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-
-const TEMP_SESSION_IMG = '/images/drone.jpg';
+import { getNextFourDates } from '../utils/dateHelpers';
+import { TEMP_SESSION_IMG } from '../constants';
 
 function ExaminerDashboard() {
   const [calendarData, setCalendarData] = useState({ availability: [], allocations: [], sessions: [] });
@@ -54,30 +54,9 @@ function ExaminerDashboard() {
     setLoading(false);
   };
 
-  // Helper: get all session dates for all candidates (4 weeks from their enrolledAt)
-  function getSessionDates(session) {
-    const dayMap = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5 };
-    const targetDay = dayMap[session.dayOfWeek];
-    if (targetDay === undefined || !session.enrolledStudents) return [];
-    const allDates = [];
-    session.enrolledStudents.forEach(es => {
-      if (!es.enrolledAt) return;
-      let baseDate = new Date(es.enrolledAt);
-      let date = new Date(baseDate);
-      while (date.getDay() !== targetDay) {
-        date.setDate(date.getDate() + 1);
-      }
-      for (let i = 0; i < 4; i++) {
-        allDates.push(new Date(date).toISOString().slice(0, 10));
-        date.setDate(date.getDate() + 7);
-      }
-    });
-    return allDates;
-  }
-
   // Modal details for selected day
   const getDayDetails = (dateStr) => {
-    const training = calendarData.sessions?.filter(s => getSessionDates(s).includes(dateStr));
+    const training = calendarData.sessions?.filter(s => getNextFourDates(s).includes(dateStr));
     const exams = calendarData.allocations?.filter(a => a.date.slice(0, 10) === dateStr);
     return { training, exams };
   };
@@ -106,7 +85,7 @@ function ExaminerDashboard() {
                 const key = date.toISOString().slice(0, 10);
                 const isAvailable = calendarData.availability?.some(dt => dt.slice(0, 10) === key);
                 const hasExam = calendarData.allocations?.some(a => a.date.slice(0, 10) === key);
-                const hasTraining = calendarData.sessions?.some(s => s.enrolledStudents?.length && getSessionDates(s).includes(key));
+                const hasTraining = calendarData.sessions?.some(s => s.enrolledStudents?.length && getNextFourDates(s).includes(key));
                 if (hasExam && hasTraining) return 'bg-gradient-to-r from-green-500 to-red-500 text-white';
                 if (hasExam) return 'bg-green-500 text-white';
                 if (hasTraining) return 'bg-red-500 text-white';

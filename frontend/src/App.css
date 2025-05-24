@@ -26,3 +26,51 @@
   margin: auto;
   background-color: rgba(139, 0, 0, 0.2); /* Add light red shading inside the circle */
 }
+
+.session-card {
+  display: flex;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.session-card img {
+  width: 25%;
+  object-fit: cover;
+}
+
+.session-card-details {
+  padding: 1rem;
+  width: 75%;
+}
+
+.session-card-details h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.session-card-details p {
+  color: #4b5563;
+  margin-bottom: 1rem;
+}
+
+.session-card-details .badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.badge-enrolled {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.badge-offline {
+  background-color: #bfdbfe;
+  color: #1e40af;
+}

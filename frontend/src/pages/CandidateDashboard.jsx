@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
+import CalendarComponent from '../components/CalendarComponent';
 import { getNextFourDates } from '../utils/dateHelpers';
 import { TEMP_PROFILE_IMG, TEMP_SESSION_IMG } from '../constants';
 import { FaUserCircle, FaChalkboardTeacher, FaCalendarAlt, FaSignOutAlt, FaBars } from 'react-icons/fa';
@@ -199,6 +198,13 @@ function CandidateDashboard() {
     </div>
   );
 
+  useEffect(() => {
+    setProfile((prevProfile) => ({
+      ...prevProfile,
+      enrolledCount: enrolledSessions.length,
+    }));
+  }, [enrolledSessions]);
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-white font-sans">
       {/* Hamburger Menu for Sidebar (Below 1100px) */}
@@ -286,7 +292,7 @@ function CandidateDashboard() {
 
       {/* Calendar Toggle for Small Screens */}
       <button
-        className={`md:hidden fixed top-4 right-4 z-50 bg-blue-500 text-white p-2 rounded-full shadow-lg ${showCalendar ? 'hidden' : ''}`}
+        className={`block md:hidden fixed top-4 right-4 z-50 bg-blue-500 text-white p-2 rounded-full shadow-lg ${showCalendar ? 'hidden' : ''}`}
         onClick={() => setShowCalendar(true)}
       >
         Show Calendar
@@ -304,25 +310,10 @@ function CandidateDashboard() {
             Close
           </button>
         )}
-        <div className="text-blue-900 font-extrabold text-2xl mb-4 text-center tracking-wide font-serif">My Schedule</div>
-        <div className="calendar-container w-full flex justify-center items-center">
-          <Calendar
-            onClickDay={handleCalendarClick}
-            tileClassName={({ date }) => {
-              const key = date.toLocaleDateString('en-CA');
-              if (highlightDates[key]) {
-                return 'dark-red-box';
-              }
-              return null;
-            }}
-            className="max-w-[500px] max-h-[500px] w-full h-auto"
-          />
-        </div>
-        {/* Updated legend to include a larger dark red circle with shading */}
-        <div className="mt-4 text-center text-sm text-blue-400 flex items-center justify-center gap-2">
-          <div className="w-6 h-6 border-2 border-red-900 bg-gradient-to-br from-red-900 to-white rounded-full"></div>
-          <span>Your enrolled sessions</span>
-        </div>
+        <CalendarComponent
+          highlightDates={highlightDates}
+          onDateClick={handleCalendarClick}
+        />
       </div>
 
       {/* Popup Component */}

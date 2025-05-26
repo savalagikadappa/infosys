@@ -1,64 +1,144 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import CalendarComponent from '../components/CalendarComponent';
 import Modal from 'react-modal';
 import { useNavigate } from 'react-router-dom';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
-import { getNextFourDates } from '../utils/dateHelpers';
-import { TEMP_SESSION_IMG } from '../constants';
 
 function ExaminerDashboard() {
-  const [calendarData, setCalendarData] = useState({ availability: [], allocations: [], sessions: [] });
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [examDetails, setExamDetails] = useState([]);
-  const token = localStorage.getItem('token');
+  const [highlightDates, setHighlightDates] = useState({});
+  const [popupData, setPopupData] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchCalendarData();
+    const fetchHighlightDates = async () => {
+      try {
+        const res = await fetch('/api/examiner/calendar', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        if (!res.ok) {
+          console.error('Failed to fetch calendar data:', res.status, res.statusText);
+          return;
+        }
+        const data = await res.json();
+
+        // Log the entire API response for debugging
+        console.log('API Response:', data);
+
+        if (!data.sessions || !Array.isArray(data.sessions)) {
+          console.error('Invalid API response: Missing or invalid sessions array');
+          return;
+        }
+
+        const newHighlightDates = {};
+        const userCache = new Map();
+
+        for (const session of data.sessions) {
+          // Log each session for debugging
+          console.log('Processing session:', session);
+
+          let trainerName = 'Unknown Trainer'; // Default value
+          if (session.createdBy?.$oid) {
+            if (userCache.has(session.createdBy.$oid)) {
+              trainerName = userCache.get(session.createdBy.$oid);
+            } else {
+              try {
+                const trainerRes = await fetch(`/api/users/${session.createdBy.$oid}`);
+                if (trainerRes.ok) {
+                  const trainerData = await trainerRes.json();
+                  trainerName = trainerData.email.split('@')[0];
+                  userCache.set(session.createdBy.$oid, trainerName);
+                } else {
+                  console.warn('Failed to fetch trainer data:', trainerRes.status, trainerRes.statusText);
+                }
+              } catch (error) {
+                console.error('Error fetching trainer data:', error);
+              }
+            }
+          } else {
+            console.warn('Missing trainer OID for session:', session._id, session.title);
+          }
+
+          if (!session.enrolledStudents || session.enrolledStudents.length === 0) {
+            console.warn('No enrolled students for session:', session._id, session.title);
+            continue;
+          }
+
+          for (const student of session.enrolledStudents) {
+            // Log each student for debugging
+            console.log('Processing student:', student);
+
+            let candidateName = 'Unknown Candidate'; // Default value
+            if (student.user?.$oid) {
+              if (userCache.has(student.user.$oid)) {
+                candidateName = userCache.get(student.user.$oid);
+              } else {
+                try {
+                  const candidateRes = await fetch(`/api/users/${student.user.$oid}`);
+                  if (candidateRes.ok) {
+                    const candidateData = await candidateRes.json();
+                    candidateName = candidateData.email.split('@')[0];
+                    userCache.set(student.user.$oid, candidateName);
+                  } else {
+                    console.warn('Failed to fetch candidate data:', candidateRes.status, candidateRes.statusText);
+                  }
+                } catch (error) {
+                  console.error('Error fetching candidate data:', error);
+                }
+              }
+            } else {
+              console.warn('Missing candidate OID for student:', student);
+            }
+
+            if (!student.nextSessionDates || student.nextSessionDates.length === 0) {
+              console.warn('No next session dates for student:', student);
+              continue;
+            }
+
+            for (const date of student.nextSessionDates) {
+              const parsedDate = new Date(date);
+              if (isNaN(parsedDate)) {
+                console.warn('Invalid date format for student:', student, 'Date:', date);
+                continue;
+              }
+
+              const key = parsedDate.toLocaleDateString('en-CA');
+              if (!newHighlightDates[key]) newHighlightDates[key] = [];
+              newHighlightDates[key].push({
+                title: session.title,
+                description: session.description,
+                mode: session.mode,
+                zoomLink: session.zoomLink,
+                isLive: session.isLive,
+                dayOfWeek: session.dayOfWeek,
+                trainer: trainerName,
+                candidate: candidateName,
+              });
+            }
+          }
+        }
+
+        // Log the final highlightDates object for debugging
+        console.log('Final highlightDates:', newHighlightDates);
+
+        setHighlightDates(newHighlightDates);
+      } catch (error) {
+        console.error('Error fetching highlight dates:', error);
+      }
+    };
+
+    fetchHighlightDates();
   }, []);
 
-  const fetchCalendarData = async () => {
-    setLoading(true);
-    const res = await fetch('/api/examiner/calendar', { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    setCalendarData(data);
-    setLoading(false);
-  };
-
-  // Examiner marks availability
-  const handleDayClick = async (dateStr) => {
-    setSelectedDate(dateStr);
-    setShowModal(true);
-    // Fetch exam details for this date
-    const res = await fetch(`/api/examiner/exams-by-date?date=${dateStr}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const data = await res.json();
-      setExamDetails(data);
+  const handleDateClick = (date) => {
+    const key = date.toLocaleDateString('en-CA');
+    if (highlightDates[key]) {
+      setPopupData({ date: key, sessions: highlightDates[key] });
     } else {
-      setExamDetails([]);
+      alert('No sessions on this date.');
     }
   };
 
-  // Allocate exam on selected date
-  const handleAllocateExam = async () => {
-    setLoading(true);
-    await fetch('/api/examiner/allocate-exam', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ date: selectedDate })
-    });
-    setShowModal(false);
-    fetchCalendarData();
-    setLoading(false);
-  };
-
-  // Modal details for selected day
-  const getDayDetails = (dateStr) => {
-    const training = calendarData.sessions?.filter(s => getNextFourDates(s).includes(dateStr));
-    const exams = calendarData.allocations?.filter(a => a.date.slice(0, 10) === dateStr);
-    return { training, exams };
+  const closePopup = () => {
+    setPopupData(null);
   };
 
   const handleLogout = () => {
@@ -67,60 +147,46 @@ function ExaminerDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-white relative">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-200 flex flex-col items-center relative">
       <button
         onClick={handleLogout}
-        className="absolute top-6 right-8 bg-gradient-to-r from-blue-600 to-blue-400 text-white font-bold px-5 py-2 rounded-xl shadow hover:from-blue-700 hover:to-blue-600 transition z-50"
+        className="absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
       >
         Logout
       </button>
-      <div className="w-full flex flex-col items-center pt-24">
-        <h2 className="text-3xl font-bold text-gray-800 mb-8">Examiner Dashboard</h2>
-        <div className="bg-white rounded-2xl shadow-xl border border-blue-200 p-8 w-full max-w-2xl min-w-[380px]" style={{ minHeight: 500, maxHeight: 1000, overflowY: 'auto' }}>
-          <div className="text-blue-700 font-extrabold text-2xl mb-4 text-center tracking-wide">My Calendar</div>
-          <div className="calendar-container">
-            <Calendar
-              onClickDay={handleDayClick}
-              tileClassName={({ date }) => {
-                const key = date.toISOString().slice(0, 10);
-                const isAvailable = calendarData.availability?.some(dt => dt.slice(0, 10) === key);
-                const hasExam = calendarData.allocations?.some(a => a.date.slice(0, 10) === key);
-                const hasTraining = calendarData.sessions?.some(s => s.enrolledStudents?.length && getNextFourDates(s).includes(key));
-                if (hasExam && hasTraining) return 'bg-gradient-to-r from-green-500 to-red-500 text-white';
-                if (hasExam) return 'bg-green-500 text-white';
-                if (hasTraining) return 'bg-red-500 text-white';
-                if (isAvailable) return 'bg-yellow-200 text-blue-900';
-                return 'bg-blue-50 text-blue-700';
-              }}
-            />
-          </div>
-          <div className="mt-4 text-center text-base text-blue-400">Green = Exam, Red = Training, Both = Green/Red, Yellow = Available</div>
-        </div>
+      <h1 className="text-3xl font-bold text-center mt-8 mb-4">Examiner Dashboard</h1>
+      <div className="flex justify-center w-full max-w-7xl p-8">
+        <CalendarComponent
+          highlightDates={highlightDates}
+          onDateClick={handleDateClick}
+        />
       </div>
-      <Modal isOpen={!!showModal} onRequestClose={() => setShowModal(false)} ariaHideApp={false}>
-        {selectedDate && (
-          <div className="flex flex-col gap-3 p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-100 shadow-2xl border-2 border-blue-200 min-w-[320px] max-w-lg mx-auto">
-            <div className="text-2xl font-extrabold text-blue-900 mb-1 text-center tracking-tight">Details for {selectedDate}</div>
-            {(() => {
-              const { training } = getDayDetails(selectedDate);
-              return <>
-                <div className="font-bold text-blue-800">Training Sessions:</div>
-                {training?.length ? training.map((s, i) => <div key={i} className="text-blue-700">{s.title} ({s.enrolledStudents?.map(e => e.email).join(', ')})</div>) : <div className="text-blue-400">None</div>}
-                <div className="font-bold text-green-800 mt-2">Exams:</div>
-                {examDetails.length ? examDetails.map((e, i) => (
-                  <div key={i} className="text-green-700">
-                    Candidate: {e.candidate?.email} <br/>
-                    Session: {e.session?.title || 'N/A'} <br/>
-                    Examiner: {e.examiner?.email}
-                  </div>
-                )) : <div className="text-blue-400">None</div>}
-              </>;
-            })()}
-            <button className="mt-4 bg-gradient-to-r from-green-600 to-green-500 text-white font-bold text-base px-6 py-2 rounded-xl shadow hover:from-green-700 hover:to-green-600 transition self-center" onClick={handleAllocateExam} disabled={loading}>Allocate Exam Here</button>
-            <button className="mt-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold text-base px-6 py-2 rounded-xl shadow hover:from-blue-700 hover:to-blue-600 transition self-center" onClick={() => setShowModal(false)}>Close</button>
+
+      {popupData && (
+        <Modal isOpen={!!popupData} onRequestClose={closePopup} ariaHideApp={false}>
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-100 shadow-2xl border-2 border-blue-200 min-w-[320px] max-w-lg mx-auto">
+            <h2 className="text-xl font-bold text-blue-800 mb-4">Sessions on {popupData.date}</h2>
+            <ul className="space-y-4">
+              {popupData.sessions.map((session, index) => (
+                <li key={index} className="p-4 bg-white rounded-lg shadow-md">
+                  <p className="text-lg font-semibold text-blue-900">Session: {session.title}</p>
+                  <p className="text-sm text-gray-700">Trainer: {session.trainer}</p>
+                  <p className="text-sm text-gray-700">Candidate: {session.candidate}</p>
+                  <p className="text-sm text-gray-700">Mode: {session.mode}</p>
+                  <p className="text-sm text-gray-700">Day: {session.dayOfWeek}</p>
+                  <p className="text-sm text-gray-700">Zoom Link: {session.zoomLink}</p>
+                </li>
+              ))}
+            </ul>
+            <button
+              className="mt-4 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600"
+              onClick={closePopup}
+            >
+              Close
+            </button>
           </div>
-        )}
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 }

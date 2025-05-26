@@ -20,5 +20,7 @@ router.get('/available', trainingSessionController.getAvailableSessions);
 router.get('/enrolled', trainingSessionController.getMyEnrolledSessions);
 // Trainer/Student: get calendar data
 router.get('/calendar', trainingSessionController.getCalendar);
+// Trainer/Student: get highlight dates for calendar
+router.get('/highlight-dates', trainingSessionController.getHighlightDates);
 
 module.exports = router;

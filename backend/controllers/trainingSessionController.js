@@ -81,7 +81,11 @@ exports.enrollInSession = async (req, res) => {
       date.setDate(date.getDate() + 7);
     }
 
-    session.enrolledStudents.push({ user: userId, enrolledAt: systemDate, bookedDates: dates });
+    session.enrolledStudents.push({
+      user: userId,
+      enrolledAt: systemDate,
+      nextSessionDates: dates // Store the next session dates
+    });
     await session.save();
 
     // Emit real-time update
@@ -162,5 +166,45 @@ exports.deleteSession = async (req, res) => {
     res.json({ message: 'Session deleted' });
   } catch (err) {
     res.status(500).json({ message: 'Error deleting session', error: err });
+  }
+};
+
+// Fetch all session dates for highlighting
+exports.getHighlightDates = async (req, res) => {
+  try {
+    const sessions = await TrainingSession.find({}, 'nextSessionDates title');
+    res.json(sessions);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching highlight dates', error: err });
+  }
+};
+
+// Ensure all sessions have nextSessionDates populated
+exports.ensureNextSessionDates = async () => {
+  try {
+    const sessions = await TrainingSession.find({ nextSessionDates: { $exists: false } });
+    const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+
+    for (const session of sessions) {
+      const targetDay = dayMap[session.dayOfWeek];
+      const dates = [];
+      let date = new Date();
+
+      // Find the first occurrence of the target day
+      while (date.getDay() !== targetDay) {
+        date.setDate(date.getDate() + 1);
+      }
+
+      // Collect the next 4 occurrences
+      for (let i = 0; i < 4; i++) {
+        dates.push(new Date(date));
+        date.setDate(date.getDate() + 7);
+      }
+
+      session.nextSessionDates = dates;
+      await session.save();
+    }
+  } catch (err) {
+    console.error('Error ensuring nextSessionDates:', err);
   }
 };

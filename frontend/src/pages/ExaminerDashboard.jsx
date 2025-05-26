@@ -29,63 +29,56 @@ function ExaminerDashboard() {
         }
 
         const newHighlightDates = {};
-        const userCache = new Map();
 
         for (const session of data.sessions) {
-          // Log each session for debugging
-          console.log('Processing session:', session);
-
-          let trainerName = 'Unknown Trainer'; // Default value
-          if (session.createdBy?.$oid) {
-            if (userCache.has(session.createdBy.$oid)) {
-              trainerName = userCache.get(session.createdBy.$oid);
-            } else {
-              try {
-                const trainerRes = await fetch(`/api/users/${session.createdBy.$oid}`);
-                if (trainerRes.ok) {
-                  const trainerData = await trainerRes.json();
-                  trainerName = trainerData.email.split('@')[0];
-                  userCache.set(session.createdBy.$oid, trainerName);
-                } else {
-                  console.warn('Failed to fetch trainer data:', trainerRes.status, trainerRes.statusText);
-                }
-              } catch (error) {
-                console.error('Error fetching trainer data:', error);
+          // Fetch trainer email using createdBy OID
+          let trainerName = 'Unknown Trainer';
+                      // console.log("hi")
+          console.log("session named " + session.title + " created by " + session.createdBy._id);
+          if (session.createdBy?._id) {
+            try {
+              const trainerRes = await fetch(`/api/examiner/users/${session.createdBy._id}`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+              });
+              if (trainerRes.ok) {
+                const trainerData = await trainerRes.json();
+                trainerName = trainerData.email || 'Unknown Trainer';
+              } else {
+                console.warn(`Failed to fetch trainer data for ID ${session.createdBy._id}:`, trainerRes.status, trainerRes.statusText);
               }
+            } catch (error) {
+              console.error(`Error fetching trainer data for ID ${session.createdBy._id}:`, error);
             }
           } else {
-            console.warn('Missing trainer OID for session:', session._id, session.title);
+            console.warn(`Missing createdBy ID for session: ${session.title}`);
+          }
+          // Fallback for trainer name if not fetched
+          if (trainerName === 'Unknown Trainer') {
+            console.warn(`Using fallback trainer name for session: ${session.title}`);
           }
 
-          if (!session.enrolledStudents || session.enrolledStudents.length === 0) {
+          if (session.enrolledStudents.length === 0) {
             console.warn('No enrolled students for session:', session._id, session.title);
             continue;
           }
 
           for (const student of session.enrolledStudents) {
-            // Log each student for debugging
-            console.log('Processing student:', student);
-
-            let candidateName = 'Unknown Candidate'; // Default value
+            // Fetch candidate email using user OID
+            let candidateName = 'Unknown Candidate';
             if (student.user?.$oid) {
-              if (userCache.has(student.user.$oid)) {
-                candidateName = userCache.get(student.user.$oid);
-              } else {
-                try {
-                  const candidateRes = await fetch(`/api/users/${student.user.$oid}`);
-                  if (candidateRes.ok) {
-                    const candidateData = await candidateRes.json();
-                    candidateName = candidateData.email.split('@')[0];
-                    userCache.set(student.user.$oid, candidateName);
-                  } else {
-                    console.warn('Failed to fetch candidate data:', candidateRes.status, candidateRes.statusText);
-                  }
-                } catch (error) {
-                  console.error('Error fetching candidate data:', error);
+              try {
+                const candidateRes = await fetch(`/api/examiner/users/${student.user.$oid}`, {
+                  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                });
+                if (candidateRes.ok) {
+                  const candidateData = await candidateRes.json();
+                  candidateName = candidateData.email || 'Unknown Candidate';
+                } else {
+                  console.warn('Failed to fetch candidate data:', candidateRes.status, candidateRes.statusText);
                 }
+              } catch (error) {
+                console.error('Error fetching candidate data:', error);
               }
-            } else {
-              console.warn('Missing candidate OID for student:', student);
             }
 
             if (!student.nextSessionDates || student.nextSessionDates.length === 0) {
@@ -117,7 +110,7 @@ function ExaminerDashboard() {
         }
 
         // Log the final highlightDates object for debugging
-        console.log('Final highlightDates:', newHighlightDates);
+        // console.log('Final highlightDates:', newHighlightDates);
 
         setHighlightDates(newHighlightDates);
       } catch (error) {
@@ -131,6 +124,10 @@ function ExaminerDashboard() {
   const handleDateClick = (date) => {
     const key = date.toLocaleDateString('en-CA');
     if (highlightDates[key]) {
+      if (popupData) {
+        console.warn('Popup already open, closing it before opening a new one.');
+        closePopup();
+      }
       setPopupData({ date: key, sessions: highlightDates[key] });
     } else {
       alert('No sessions on this date.');

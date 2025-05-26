@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const examinerController = require('../controllers/examinerController');
 const authMiddleware = require('../middleware/authMiddleware');
+const { getUserById } = require('../controllers/userController');
 
 // All routes require authentication
 router.use(authMiddleware);
@@ -21,5 +22,8 @@ router.get('/candidate-exams', examinerController.getCandidateExams);
 
 // Get all exam allocations for a specific date
 router.get('/exams-by-date', examinerController.getExamsByDate);
+
+// Route to fetch user by ID
+router.get('/users/:id', getUserById);
 
 module.exports = router;

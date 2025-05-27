@@ -79,6 +79,8 @@ function ExaminerDashboard() {
               } catch (error) {
                 console.error('Error fetching candidate data:', error);
               }
+            } else {
+              console.warn('Missing user OID for student:', student);
             }
 
             if (!student.nextSessionDates || student.nextSessionDates.length === 0) {

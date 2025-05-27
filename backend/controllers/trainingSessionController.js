@@ -92,6 +92,24 @@ exports.enrollInSession = async (req, res) => {
     const io = req.app.get('io');
     if (io) io.emit('session-updated');
 
+    // Send email notification
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Send email notification
+    const sendEmail = require('../utils/emailService');
+    const emailSubject = `Enrollment Confirmation for ${session.title}`;
+    const emailBody = `You have successfully enrolled in the session "${session.title}". The next four session dates are: ${dates.map(date => date.toDateString()).join(', ')}.`;
+
+    try {
+      await sendEmail(user.email, emailSubject, emailBody);
+      console.log('Enrollment email sent successfully');
+    } catch (emailError) {
+      console.error('Error sending enrollment email:', emailError);
+    }
+
     res.json({ message: 'Enrolled successfully', bookedDates: dates });
   } catch (err) {
     res.status(500).json({ message: 'Error enrolling', error: err });

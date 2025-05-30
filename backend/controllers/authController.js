@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const SECRET_KEY = 'your_secret_key'; // replace with env var in real production
 
-// Signup
+// API: Signup
 exports.signup = async (req, res) => {
   const { email, password, role } = req.body;
   try {
@@ -12,7 +12,6 @@ exports.signup = async (req, res) => {
     if (existingUser) return res.status(400).json({ message: 'Email already exists' });
 
 
-    // Hash password for security
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({ email, password: hashedPassword, role });
@@ -24,22 +23,20 @@ exports.signup = async (req, res) => {
   }
 };
 
-// Login
+// API: Login
 exports.login = async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: 'Invalid email or password' });
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid email or password' });
 
-    // Create token, signed with SECRET_KEY
     const token = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
 
-    const name = email.split('@')[0]; // Extract name from email
-    res.json({ token, role: user.role, name, email }); // Include extracted name and email in the response
+    const name = email.split('@')[0];
+    res.json({ token, role: user.role, name, email });
   } catch (err) {
     res.status(500).json({ message: 'Error logging in', error: err });
   }

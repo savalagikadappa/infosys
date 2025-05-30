@@ -1,3 +1,4 @@
+// API: Initialize Express app and setup routes
 const express = require('express');
 const mongoose = require('mongoose');
 const app = express();
@@ -6,18 +7,14 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server, { cors: { origin: '*' } });
-app.set('io', io); // Make io accessible in controllers
+app.set('io', io);
 app.use(cors());
+app.use(express.json());
 
-// Middleware
-app.use(express.json()); // parse JSON requests
-
-// Connect to your local MongoDB
 mongoose.connect('mongodb://localhost:27017/drone')
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.log(err));
 
-// Auth routes
 const authRoutes = require('./routes/auth');
 const trainingSessionRoutes = require('./routes/trainingSession');
 const examinerRoutes = require('./routes/examiner');

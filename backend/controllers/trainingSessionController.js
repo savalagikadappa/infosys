@@ -1,13 +1,11 @@
 const TrainingSession = require('../models/TrainingSession');
 const User = require('../models/User');
 
-// Create a new training session (Trainer only)
+// API: Create a new training session
 exports.createSession = async (req, res) => {
   try {
     const { title, description, mode, zoomLink, location, isLive, dayOfWeek } = req.body;
     const createdBy = req.user.userId;
-
-    // Removed conflict detection by date
 
     const session = new TrainingSession({
       title,
@@ -20,7 +18,6 @@ exports.createSession = async (req, res) => {
       createdBy,
     });
     await session.save();
-    // Emit real-time update
     const io = req.app.get('io');
     if (io) io.emit('session-updated');
     res.status(201).json(session);
@@ -29,19 +26,19 @@ exports.createSession = async (req, res) => {
   }
 };
 
-// List sessions created by the trainer
+// API: List sessions created by the trainer
 exports.getMySessions = async (req, res) => {
   try {
     const sessions = await TrainingSession.find({ createdBy: req.user.userId })
       .populate('enrolledStudents', 'email')
-      .sort({ createdAt: 1 }); // Sort by creation time
+      .sort({ createdAt: 1 });
     res.json(sessions);
   } catch (err) {
     res.status(500).json({ message: 'Error fetching sessions', error: err });
   }
 };
 
-// Enroll a student in a session
+// API: Enroll a student in a session
 exports.enrollInSession = async (req, res) => {
   try {
     const sessionId = req.params.id;
@@ -116,7 +113,7 @@ exports.enrollInSession = async (req, res) => {
   }
 };
 
-// List all available sessions for students
+// API: List all available sessions for students
 exports.getAvailableSessions = async (req, res) => {
   try {
     // Only return sessions where the candidate is NOT already enrolled
@@ -129,7 +126,7 @@ exports.getAvailableSessions = async (req, res) => {
   }
 };
 
-// List sessions a student is enrolled in
+// API: List sessions a student is enrolled in
 exports.getMyEnrolledSessions = async (req, res) => {
   try {
     const sessions = await TrainingSession.find({ 'enrolledStudents.user': req.user.userId })
@@ -152,7 +149,7 @@ exports.getMyEnrolledSessions = async (req, res) => {
   }
 };
 
-// Get calendar data for a user (trainer or student)
+// API: Get calendar data for a user (trainer or student)
 exports.getCalendar = async (req, res) => {
   try {
     let sessions;
@@ -169,7 +166,7 @@ exports.getCalendar = async (req, res) => {
   }
 };
 
-// Delete a session (Trainer only)
+// API: Delete a session (Trainer only)
 exports.deleteSession = async (req, res) => {
   try {
     const session = await TrainingSession.findById(req.params.id);
@@ -178,7 +175,6 @@ exports.deleteSession = async (req, res) => {
       return res.status(403).json({ message: 'Not allowed' });
     }
     await session.deleteOne();
-    // Emit real-time update
     const io = req.app.get('io');
     if (io) io.emit('session-updated');
     res.json({ message: 'Session deleted' });
@@ -187,7 +183,7 @@ exports.deleteSession = async (req, res) => {
   }
 };
 
-// Fetch all session dates for highlighting
+// API: Fetch all session dates for highlighting
 exports.getHighlightDates = async (req, res) => {
   try {
     const sessions = await TrainingSession.find({}, 'nextSessionDates title');
@@ -197,7 +193,7 @@ exports.getHighlightDates = async (req, res) => {
   }
 };
 
-// Ensure all sessions have nextSessionDates populated
+// API: Ensure all sessions have nextSessionDates populated
 exports.ensureNextSessionDates = async () => {
   try {
     const sessions = await TrainingSession.find({ nextSessionDates: { $exists: false } });

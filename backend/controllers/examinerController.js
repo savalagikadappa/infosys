@@ -2,7 +2,7 @@ const { ExaminerAvailability, ExamAllocation } = require('../models/ExamAllocati
 const TrainingSession = require('../models/TrainingSession');
 const User = require('../models/User');
 
-// Examiner sets their available dates
+// API: Examiner sets their available dates
 exports.setAvailability = async (req, res) => {
   try {
     const examiner = req.user.userId;
@@ -20,7 +20,7 @@ exports.setAvailability = async (req, res) => {
   }
 };
 
-// Examiner gets their availability
+// API: Examiner gets their availability
 exports.getAvailability = async (req, res) => {
   try {
     const examiner = req.user.userId;
@@ -31,7 +31,7 @@ exports.getAvailability = async (req, res) => {
   }
 };
 
-// Examiner/Frontend: Get calendar data (training sessions, exams, availability)
+// API: Examiner/Frontend: Get calendar data
 exports.getExaminerCalendar = async (req, res) => {
   try {
     const examiner = req.user.userId;
@@ -39,7 +39,6 @@ exports.getExaminerCalendar = async (req, res) => {
     const allocations = await ExamAllocation.find({ examiner })
       .populate('candidate', 'email')
       .sort({ date: 1 });
-    // Get all training sessions for all candidates
     const sessions = await TrainingSession.find({})
       .populate('enrolledStudents', 'email')
       .populate('createdBy', 'email');

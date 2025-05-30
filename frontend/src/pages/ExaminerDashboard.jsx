@@ -53,7 +53,7 @@ function ExaminerDashboard() {
             console.warn(`Missing createdBy ID for session: ${session.title}`);
           }
           // Fallback for trainer name if not fetched
-          if (trainerName === 'Unknown Trainer') {
+          if (trainerName === 'Trainer') {
             console.warn(`Using fallback trainer name for session: ${session.title}`);
           }
 
@@ -64,7 +64,7 @@ function ExaminerDashboard() {
 
           for (const student of session.enrolledStudents) {
             // Fetch candidate email using user OID
-            let candidateName = 'Unknown Candidate';
+            let candidateName = 'Candidate';
             if (student.user?.$oid) {
               try {
                 const candidateRes = await fetch(`/api/examiner/users/${student.user.$oid}`, {

@@ -6,7 +6,7 @@ const User = require('../models/User');
 exports.setAvailability = async (req, res) => {
   try {
     const examiner = req.user.userId;
-    const { availableDates } = req.body; // Array of ISO date strings
+    const { availableDates } = req.body; 
     let record = await ExaminerAvailability.findOne({ examiner });
     if (!record) {
       record = new ExaminerAvailability({ examiner, availableDates });
@@ -52,31 +52,25 @@ exports.getExaminerCalendar = async (req, res) => {
 exports.allocateExam = async (req, res) => {
   try {
     const examiner = req.user.userId;
-    const { date } = req.body; // ISO date string
+    const { date } = req.body;
     const examDate = new Date(date);
-    // Find all sessions and all existing exam allocations for this date
     const allSessions = await TrainingSession.find({})
       .populate('enrolledStudents', 'email');
     const existingExams = await ExamAllocation.find({ date: examDate });
-    // Find candidates who have completed training before this date and have no exam on this date or for this session
     const candidates = [];
     for (const session of allSessions) {
-      // Use session.createdAt as the start date for this session
       const startDate = new Date(session.createdAt);
       const dayMap = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5 };
       const targetDay = dayMap[session.dayOfWeek];
       if (targetDay === undefined) continue;
-      // Find the first occurrence of the session's dayOfWeek on or after createdAt
       let firstSession = new Date(startDate);
       while (firstSession.getDay() !== targetDay) {
         firstSession.setDate(firstSession.getDate() + 1);
       }
       const lastSession = new Date(firstSession);
-      lastSession.setDate(lastSession.getDate() + 7 * 3); // 4th week
+      lastSession.setDate(lastSession.getDate() + 7 * 3); 
       for (const candidate of session.enrolledStudents) {
-        // Check if candidate finished training before exam date
         if (examDate <= lastSession) continue;
-        // Check for exam conflict: already has exam for this session or on this date
         const hasExamConflict = await ExamAllocation.findOne({
           candidate: candidate._id,
           $or: [
@@ -92,7 +86,6 @@ exports.allocateExam = async (req, res) => {
     if (candidates.length === 0) {
       return res.status(400).json({ message: 'No candidates eligible for exam on this date' });
     }
-    // Allocate to the candidate who enrolled earliest
     candidates.sort((a, b) => a.enrolledDate - b.enrolledDate);
     const allocated = new ExamAllocation({ examiner, candidate: candidates[0].candidate, session: candidates[0].session, date: examDate });
     await allocated.save();

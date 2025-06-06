@@ -46,12 +46,10 @@ exports.enrollInSession = async (req, res) => {
     const session = await TrainingSession.findById(sessionId);
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
-    // Prevent double enrollment
     if (session.enrolledStudents.some(e => e.user.toString() === userId)) {
       return res.status(400).json({ message: 'Already enrolled' });
     }
 
-    // Conflict detection by dayOfWeek
     const conflict = await TrainingSession.findOne({
       'enrolledStudents.user': userId,
       dayOfWeek: session.dayOfWeek
@@ -60,19 +58,16 @@ exports.enrollInSession = async (req, res) => {
       return res.status(400).json({ message: `You already have a session on ${session.dayOfWeek} and can't book another on the same day.` });
     }
 
-    // Use the system date at the time of enrollment
     const systemDate = new Date();
     const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
     const targetDay = dayMap[session.dayOfWeek];
     const dates = [];
     let date = new Date(systemDate);
 
-    // Find the first occurrence of the target day
     while (date.getDay() !== targetDay) {
       date.setDate(date.getDate() + 1);
     }
 
-    // Collect the next 4 occurrences
     for (let i = 0; i < 4; i++) {
       dates.push(new Date(date));
       date.setDate(date.getDate() + 7);
@@ -81,21 +76,18 @@ exports.enrollInSession = async (req, res) => {
     session.enrolledStudents.push({
       user: userId,
       enrolledAt: systemDate,
-      nextSessionDates: dates // Store the next session dates
+      nextSessionDates: dates 
     });
     await session.save();
 
-    // Emit real-time update
     const io = req.app.get('io');
     if (io) io.emit('session-updated');
 
-    // Send email notification
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Send email notification
     const sendEmail = require('../utils/emailService');
     const emailSubject = `Enrollment Confirmation for ${session.title}`;
     const emailBody = `You have successfully enrolled in the session "${session.title}". The next four session dates are: ${dates.map(date => date.toDateString()).join(', ')}.`;
@@ -116,7 +108,6 @@ exports.enrollInSession = async (req, res) => {
 // API: List all available sessions for students
 exports.getAvailableSessions = async (req, res) => {
   try {
-    // Only return sessions where the candidate is NOT already enrolled
     const sessions = await TrainingSession.find({
       'enrolledStudents.user': { $ne: req.user.userId }
     }).populate('createdBy', 'email').populate('enrolledStudents.user', 'email');
@@ -134,7 +125,6 @@ exports.getMyEnrolledSessions = async (req, res) => {
       .populate('enrolledStudents.user', 'email')
       .sort({ createdAt: 1 });
 
-    // Include bookedDates in the response
     const sessionsWithBookedDates = sessions.map(session => {
       const enrolledStudent = session.enrolledStudents.find(e => e.user.toString() === req.user.userId);
       return {
@@ -204,12 +194,10 @@ exports.ensureNextSessionDates = async () => {
       const dates = [];
       let date = new Date();
 
-      // Find the first occurrence of the target day
       while (date.getDay() !== targetDay) {
         date.setDate(date.getDate() + 1);
       }
 
-      // Collect the next 4 occurrences
       for (let i = 0; i < 4; i++) {
         dates.push(new Date(date));
         date.setDate(date.getDate() + 7);

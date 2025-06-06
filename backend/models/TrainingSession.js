@@ -33,7 +33,7 @@ const trainingSessionSchema = new mongoose.Schema({
   enrolledStudents: [{
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     enrolledAt: { type: Date, required: true },
-    nextSessionDates: [{ type: Date }] // Added field to store next session dates
+    nextSessionDates: [{ type: Date }]
   }]
 }, { timestamps: true });
 

@@ -1,30 +1,80 @@
 @import "tailwindcss";
 
-.dark-red-box {
-  border: 2px solid darkred;
-  border-radius: 50%; /* Make it a circle */
-  color: darkred;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 80%;
-  width: 80%;
-  margin: auto;
+/* Calendar customisation */
+.custom-calendar .react-calendar {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  line-height: 1.2;
 }
 
-.react-calendar__tile.dark-red-box {
-  border: 2px solid darkred;
-  border-radius: 50%; /* Make it a circle */
-  color: darkred;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  width: 100%;
-  margin: auto;
-  background-color: rgba(139, 0, 0, 0.2); /* Add light red shading inside the circle */
+.custom-calendar .react-calendar__navigation button {
+  font-weight: 600;
+  color: #1e3a8a; /* blue-800 */
+  border-radius: 0.5rem;
+  transition: background .15s ease, color .15s ease;
+}
+
+.custom-calendar .react-calendar__navigation button:enabled:hover,
+.custom-calendar .react-calendar__navigation button:enabled:focus {
+  background: #e0f2fe; /* light blue */
+  color: #1e40af;
+}
+
+.custom-calendar .react-calendar__tile {
+  padding: 0.75rem 0.25rem;
+  position: relative;
+  background: transparent;
+  font-size: 0.9rem;
+  border-radius: 0.75rem;
+  transition: background .15s ease, color .15s ease, transform .15s ease;
+}
+
+.custom-calendar .react-calendar__month-view__weekdays abbr[title] {
+  text-decoration: none;
+  font-size: .65rem;
+  letter-spacing: .05em;
+  color: #1e3a8a;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.custom-calendar .react-calendar__tile:enabled:hover,
+.custom-calendar .react-calendar__tile:enabled:focus {
+  background: #eff6ff; /* blue-50 */
+  color: #1e3a8a;
+}
+
+/* Highlighted session date */
+.custom-calendar .react-calendar__tile.session-highlight {
+  background: linear-gradient(135deg,#f43f5e,#dc2626); /* rose/red gradient */
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 10px -2px rgba(220,38,38,.4);
+  transform: scale(1.02);
+}
+
+.custom-calendar .react-calendar__tile.session-highlight:hover {
+  background: linear-gradient(135deg,#fb7185,#ef4444);
+}
+
+.custom-calendar .react-calendar__tile--now:not(.session-highlight) {
+  outline: 2px dashed #1e3a8a;
+  outline-offset: 2px;
+}
+
+.custom-calendar .react-calendar__tile--active:not(.session-highlight) {
+  background: #dbeafe; /* blue-100 */
+  color: #1e3a8a;
+  font-weight: 600;
+}
+
+.custom-calendar .react-calendar__tile--rangeStart,
+.custom-calendar .react-calendar__tile--rangeEnd {
+  background: #3b82f6; /* blue-500 */
+  color: #fff;
+  border-radius: 0.75rem;
 }
 
 .session-card {

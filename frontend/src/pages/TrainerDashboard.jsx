@@ -329,22 +329,19 @@ function TrainerDashboard() {
         </section>
 
         {/* Right Column: Calendar */}
-        <aside className="w-full md:w-1/3 p-6 bg-blue-100">
-          <h2 className="text-xl font-bold mb-4">Calendar</h2>
-          <div className="h-64 bg-white rounded shadow flex items-center justify-center">
-            <CalendarComponent
-              highlightDates={highlightDates}
-              onDateClick={(date) => {
-                const key = date.toLocaleDateString('en-CA');
-                if (highlightDates[key]) {
-                  alert(`Sessions on ${key}:
+        <aside className="w-full md:w-1/3 p-6 bg-blue-100 flex flex-col items-stretch">
+          <CalendarComponent
+            highlightDates={highlightDates}
+            onDateClick={(date) => {
+              const key = date.toLocaleDateString('en-CA');
+              if (highlightDates[key]) {
+                alert(`Sessions on ${key}:
 ` + highlightDates[key].map(s => s.title).join(', '));
-                } else {
-                  alert('No sessions on this date.');
-                }
-              }}
-            />
-          </div>
+              } else {
+                alert('No sessions on this date.');
+              }
+            }}
+          />
         </aside>
       </main>
     </div>

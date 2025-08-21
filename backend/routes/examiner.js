@@ -7,8 +7,8 @@ const { getUserById } = require('../controllers/userController');
 // All routes require authentication
 router.use(authMiddleware);
 
-// Examiner sets and gets their availability
-router.post('/availability', examinerController.setAvailability);
+// Examiner availability: toggle and fetch
+router.post('/availability/toggle', examinerController.toggleAvailability);
 router.get('/availability', examinerController.getAvailability);
 
 // Examiner calendar data (sessions, exams, availability)

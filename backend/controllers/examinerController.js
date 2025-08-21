@@ -1,33 +1,39 @@
-const { ExaminerAvailability, ExamAllocation } = require('../models/ExamAllocation');
+const { ExamAllocation } = require('../models/ExamAllocation');
+const ExaminerAvailability = require('../models/ExaminerAvailability');
 const TrainingSession = require('../models/TrainingSession');
 const User = require('../models/User');
 
-// API: Examiner sets their available dates
-exports.setAvailability = async (req, res) => {
+// API: Examiner toggle availability for a single date
+exports.toggleAvailability = async (req, res) => {
   try {
     const examiner = req.user.userId;
-    const { availableDates } = req.body; 
-    let record = await ExaminerAvailability.findOne({ examiner });
-    if (!record) {
-      record = new ExaminerAvailability({ examiner, availableDates });
+    const { date } = req.body; // ISO date string
+    if (!date) return res.status(400).json({ message: 'date is required' });
+    const d = new Date(date);
+    if (isNaN(d)) return res.status(400).json({ message: 'Invalid date format' });
+    // Truncate time to 00:00:00 for consistency (UTC)
+    d.setUTCHours(0,0,0,0);
+    const existing = await ExaminerAvailability.findOne({ examiner, date: d });
+    if (existing) {
+      await existing.deleteOne();
+      return res.json({ message: 'Availability removed', date: d, available: false });
     } else {
-      record.availableDates = availableDates;
+      await ExaminerAvailability.create({ examiner, date: d });
+      return res.json({ message: 'Availability added', date: d, available: true });
     }
-    await record.save();
-    res.json({ message: 'Availability updated', availableDates });
   } catch (err) {
-    res.status(500).json({ message: 'Error updating availability', error: err });
+    res.status(500).json({ message: 'Error toggling availability', error: err.message });
   }
 };
 
-// API: Examiner gets their availability
+// API: Examiner gets their availability (list of dates)
 exports.getAvailability = async (req, res) => {
   try {
     const examiner = req.user.userId;
-    const record = await ExaminerAvailability.findOne({ examiner });
-    res.json(record ? record.availableDates : []);
+    const records = await ExaminerAvailability.find({ examiner });
+    res.json(records.map(r => r.date));
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching availability', error: err });
+    res.status(500).json({ message: 'Error fetching availability', error: err.message });
   }
 };
 
@@ -35,14 +41,14 @@ exports.getAvailability = async (req, res) => {
 exports.getExaminerCalendar = async (req, res) => {
   try {
     const examiner = req.user.userId;
-    const availability = await ExaminerAvailability.findOne({ examiner });
+  const availabilityRecords = await ExaminerAvailability.find({ examiner });
     const allocations = await ExamAllocation.find({ examiner })
       .populate('candidate', 'email')
       .sort({ date: 1 });
     const sessions = await TrainingSession.find({})
       .populate('enrolledStudents', 'email')
       .populate('createdBy', 'email');
-    res.json({ availability: availability ? availability.availableDates : [], allocations, sessions });
+  res.json({ availability: availabilityRecords.map(r => r.date), allocations, sessions });
   } catch (err) {
     res.status(500).json({ message: 'Error fetching calendar', error: err });
   }

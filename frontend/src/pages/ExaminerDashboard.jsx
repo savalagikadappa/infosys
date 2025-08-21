@@ -6,10 +6,13 @@ import { useNavigate } from 'react-router-dom';
 function ExaminerDashboard() {
   const [highlightDates, setHighlightDates] = useState({});
   const [popupData, setPopupData] = useState(null);
+  const [availabilityDates, setAvailabilityDates] = useState({});
+  const [selectedDateKey, setSelectedDateKey] = useState(null);
+  const [isAvailableOnSelected, setIsAvailableOnSelected] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchHighlightDates = async () => {
+  const fetchHighlightDates = async () => {
       try {
         const res = await fetch('/api/examiner/calendar', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -115,6 +118,18 @@ function ExaminerDashboard() {
         // console.log('Final highlightDates:', newHighlightDates);
 
         setHighlightDates(newHighlightDates);
+
+        // Availability dates from API (array of ISO strings)
+        if (Array.isArray(data.availability)) {
+          const avail = {};
+            data.availability.forEach(d => {
+              const dateObj = new Date(d);
+              if (!isNaN(dateObj)) {
+                avail[dateObj.toLocaleDateString('en-CA')] = true;
+              }
+            });
+          setAvailabilityDates(avail);
+        }
       } catch (error) {
         console.error('Error fetching highlight dates:', error);
       }
@@ -125,19 +140,47 @@ function ExaminerDashboard() {
 
   const handleDateClick = (date) => {
     const key = date.toLocaleDateString('en-CA');
-    if (highlightDates[key]) {
-      if (popupData) {
-        console.warn('Popup already open, closing it before opening a new one.');
-        closePopup();
-      }
-      setPopupData({ date: key, sessions: highlightDates[key] });
-    } else {
-      alert('No sessions on this date.');
-    }
+    setSelectedDateKey(key);
+    setIsAvailableOnSelected(!!availabilityDates[key]);
+    const sessions = highlightDates[key] || [];
+    setPopupData({ date: key, sessions });
   };
 
   const closePopup = () => {
     setPopupData(null);
+    setSelectedDateKey(null);
+  };
+
+  const toggleAvailability = async () => {
+    if (!selectedDateKey) return;
+    try {
+      const iso = new Date(selectedDateKey).toISOString();
+      const res = await fetch('/api/examiner/availability/toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ date: iso })
+      });
+      if (!res.ok) {
+        console.error('Failed to toggle availability');
+        return;
+      }
+      const data = await res.json();
+      setAvailabilityDates(prev => {
+        const copy = { ...prev };
+        if (data.available) {
+          copy[selectedDateKey] = true;
+        } else {
+          delete copy[selectedDateKey];
+        }
+        return copy;
+      });
+      setIsAvailableOnSelected(data.available);
+    } catch (e) {
+      console.error('Error toggling availability', e);
+    }
   };
 
   const handleLogout = () => {
@@ -157,6 +200,7 @@ function ExaminerDashboard() {
       <div className="flex justify-center w-full max-w-7xl p-8">
         <CalendarComponent
           highlightDates={highlightDates}
+          availabilityDates={availabilityDates}
           onDateClick={handleDateClick}
         />
       </div>
@@ -164,25 +208,33 @@ function ExaminerDashboard() {
       {popupData && (
         <Modal isOpen={!!popupData} onRequestClose={closePopup} ariaHideApp={false}>
           <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-100 shadow-2xl border-2 border-blue-200 min-w-[320px] max-w-lg mx-auto">
-            <h2 className="text-xl font-bold text-blue-800 mb-4">Sessions on {popupData.date}</h2>
-            <ul className="space-y-4">
-              {popupData.sessions.map((session, index) => (
-                <li key={index} className="p-4 bg-white rounded-lg shadow-md">
-                  <p className="text-lg font-semibold text-blue-900">Session: {session.title}</p>
-                  <p className="text-sm text-gray-700">Trainer: {session.trainer}</p>
-                  <p className="text-sm text-gray-700">Candidate: {session.candidate}</p>
-                  <p className="text-sm text-gray-700">Mode: {session.mode}</p>
-                  <p className="text-sm text-gray-700">Day: {session.dayOfWeek}</p>
-                  <p className="text-sm text-gray-700">Zoom Link: {session.zoomLink}</p>
-                </li>
-              ))}
-            </ul>
-            <button
-              className="mt-4 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600"
-              onClick={closePopup}
-            >
-              Close
-            </button>
+            <h2 className="text-xl font-bold text-blue-800 mb-4">{popupData.sessions.length > 0 ? 'Sessions on ' : 'Date: '}{popupData.date}</h2>
+            {popupData.sessions.length > 0 ? (
+              <ul className="space-y-4">
+                {popupData.sessions.map((session, index) => (
+                  <li key={index} className="p-4 bg-white rounded-lg shadow-md">
+                    <p className="text-lg font-semibold text-blue-900">Session: {session.title}</p>
+                    <p className="text-sm text-gray-700">Trainer: {session.trainer}</p>
+                    <p className="text-sm text-gray-700">Candidate: {session.candidate}</p>
+                    <p className="text-sm text-gray-700">Mode: {session.mode}</p>
+                    <p className="text-sm text-gray-700">Day: {session.dayOfWeek}</p>
+                    <p className="text-sm text-gray-700">Zoom Link: {session.zoomLink}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-blue-900 mb-4">No sessions on this date.</p>
+            )}
+
+            <div className="mt-6 flex gap-3">
+              <button onClick={toggleAvailability} className={`flex-1 py-2 rounded-lg text-white font-semibold ${isAvailableOnSelected ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-500 hover:bg-gray-600'}`}>{isAvailableOnSelected ? 'Mark Busy' : 'Mark Available'}</button>
+              <button
+                className="flex-1 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600"
+                onClick={closePopup}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </Modal>
       )}

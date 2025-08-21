@@ -19,12 +19,6 @@ const examAllocationSchema = new mongoose.Schema({
   session: { type: mongoose.Schema.Types.ObjectId, ref: 'TrainingSession', required: true }
 }, { timestamps: true });
 
-const examinerAvailabilitySchema = new mongoose.Schema({
-  examiner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  availableDates: [{ type: Date, required: true }]
-}, { timestamps: true });
-
 module.exports = {
-  ExamAllocation: mongoose.model('ExamAllocation', examAllocationSchema),
-  ExaminerAvailability: mongoose.model('ExaminerAvailability', examinerAvailabilitySchema)
+  ExamAllocation: mongoose.model('ExamAllocation', examAllocationSchema)
 };

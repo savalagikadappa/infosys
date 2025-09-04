@@ -70,6 +70,14 @@
   box-shadow: 0 4px 10px -2px rgba(99,102,241,.4);
 }
 
+/* Exam scheduling date (candidate sees examiner availability) */
+.custom-calendar .react-calendar__tile.exam-available-highlight:not(.session-highlight):not(.availability-highlight) {
+  background: linear-gradient(135deg,#6366f1,#4338ca);
+  color:#fff;
+  font-weight:600;
+  box-shadow:0 4px 10px -2px rgba(67,56,202,.35);
+}
+
 .custom-calendar .react-calendar__tile.session-highlight:hover {
   background: linear-gradient(135deg,#fb7185,#ef4444);
 }

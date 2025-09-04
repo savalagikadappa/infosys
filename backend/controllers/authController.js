@@ -2,7 +2,8 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-const SECRET_KEY = 'your_secret_key'; // replace with env var in real production
+// Prefer environment secret; fallback ONLY for local dev
+const SECRET_KEY = process.env.JWT_SECRET || 'dev_fallback_secret_change_me';
 
 // API: Signup
 exports.signup = async (req, res) => {
@@ -39,5 +40,16 @@ exports.login = async (req, res) => {
     res.json({ token, role: user.role, name, email });
   } catch (err) {
     res.status(500).json({ message: 'Error logging in', error: err });
+  }
+};
+
+// API: Get current user profile
+exports.me = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching profile', error: err.message });
   }
 };

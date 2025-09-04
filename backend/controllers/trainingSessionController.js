@@ -176,8 +176,17 @@ exports.deleteSession = async (req, res) => {
 // API: Fetch all session dates for highlighting
 exports.getHighlightDates = async (req, res) => {
   try {
-    const sessions = await TrainingSession.find({}, 'nextSessionDates title');
-    res.json(sessions);
+    const sessions = await TrainingSession.find({})
+      .select('title dayOfWeek enrolledStudents.nextSessionDates enrolledStudents.enrolledAt enrolledStudents.user')
+      .populate('enrolledStudents.user', 'email');
+    // Flatten into a simple structure for frontend calendar consumption
+    const response = sessions.map(s => ({
+      _id: s._id,
+      title: s.title,
+      dayOfWeek: s.dayOfWeek,
+      nextSessionDates: (s.enrolledStudents || []).flatMap(es => es.nextSessionDates || [])
+    }));
+    res.json(response);
   } catch (err) {
     res.status(500).json({ message: 'Error fetching highlight dates', error: err });
   }
@@ -186,7 +195,7 @@ exports.getHighlightDates = async (req, res) => {
 // API: Ensure all sessions have nextSessionDates populated
 exports.ensureNextSessionDates = async () => {
   try {
-    const sessions = await TrainingSession.find({ nextSessionDates: { $exists: false } });
+  const sessions = await TrainingSession.find({ $or: [ { 'enrolledStudents.nextSessionDates': { $exists: false } }, { 'enrolledStudents.nextSessionDates.0': { $exists: false } } ] });
     const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
 
     for (const session of sessions) {
@@ -203,8 +212,8 @@ exports.ensureNextSessionDates = async () => {
         date.setDate(date.getDate() + 7);
       }
 
-      session.nextSessionDates = dates;
-      await session.save();
+  session.enrolledStudents = (session.enrolledStudents || []).map(es => ({ ...es.toObject(), nextSessionDates: dates }));
+  await session.save();
     }
   } catch (err) {
     console.error('Error ensuring nextSessionDates:', err);

@@ -9,6 +9,10 @@ import { FaUserCircle, FaChalkboardTeacher, FaCalendarAlt, FaSignOutAlt, FaBars 
 function CandidateDashboard() {
   const [availableSessions, setAvailableSessions] = useState([]);
   const [enrolledSessions, setEnrolledSessions] = useState([]);
+  const [availabilityDates, setAvailabilityDates] = useState({}); // all examiner availability (green)
+  const [examDates, setExamDates] = useState({}); // (kept for blue highlight if we later add user-driven marking) currently mirrors availability when user has at least one session
+  const [examScheduleModal, setExamScheduleModal] = useState(null); // { date, sessions: [] }
+  const [scheduling, setScheduling] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -32,7 +36,14 @@ function CandidateDashboard() {
   useEffect(() => {
     fetchSessions();
     fetchExams();
+  fetchExamAvailability();
   }, []);
+
+  // Recompute eligible exam dates whenever enrolled sessions change (in case user just became eligible)
+  useEffect(() => {
+  // Mirror availability to examDates if user has at least one enrolled session to allow pre-booking UI (blue layer optional)
+  if (enrolledSessions.length > 0) setExamDates(availabilityDates);
+  }, [enrolledSessions]);
 
   const fetchSessions = async () => {
     setLoading(true);
@@ -60,6 +71,51 @@ function CandidateDashboard() {
       }
     } catch (e) {
       setExamAllocations([]);
+    }
+  };
+  
+  const fetchExamAvailability = async () => {
+    // All raw availability (green)
+    try {
+      const res = await fetch('/api/exams/available-dates', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const map = {};
+      data.forEach(d => { map[d] = true; });
+      setAvailabilityDates(map);
+    } catch (e) { /* ignore */ }
+  };
+
+  // Removed eligible filtering; backend now allows booking any availability date so long as chosen date is after computed 4th session.
+  
+  const fetchEligibleSessionsForDate = async (dateKey) => {
+    try {
+      const res = await fetch(`/api/exams/eligible-sessions?date=${dateKey}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch (e) { return []; }
+  };
+  
+  const scheduleExam = async (dateKey, sessionId) => {
+    setScheduling(true);
+    try {
+      const res = await fetch('/api/exams/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ date: dateKey, sessionId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || 'Failed to schedule exam');
+      } else {
+        alert('Exam scheduled');
+        setExamScheduleModal(null);
+  fetchExams();
+      }
+    } catch (e) {
+      alert('Error scheduling exam');
+    } finally {
+      setScheduling(false);
     }
   };
 
@@ -127,16 +183,27 @@ function CandidateDashboard() {
     }, 0);
   };
 
-  const handleCalendarClick = (date) => {
+  const handleCalendarClick = async (date) => {
     const key = date.toLocaleDateString('en-CA');
-    if (highlightDates[key]) {
-      setPopupData({
-        date: key,
-        sessions: highlightDates[key],
-      });
-    } else {
-      console.log('No session on this date:', key);
+    const isSessionDay = !!highlightDates[key];
+    const isEligibleExamDay = !!examDates[key]; // treat as actionable
+    const isAvailabilityDay = !!availabilityDates[key];
+
+    if (isEligibleExamDay || isAvailabilityDay) {
+      // Fetch sessions that qualify for this exam date (4th session before chosen date)
+      const eligible = await fetchEligibleSessionsForDate(key);
+      if (eligible.length > 0) {
+        setExamScheduleModal({ date: key, sessions: eligible });
+        return;
+      }
+      // Still show info if availability but none qualify
+      alert('No sessions reach their 4th training date before this exam date yet. You can pick a later date.');
     }
+    if (isSessionDay) {
+      setPopupData({ date: key, sessions: highlightDates[key] });
+      return;
+    }
+  // else ignore clicks on non-highlighted days
   };
 
   const closePopup = () => {
@@ -242,11 +309,9 @@ function CandidateDashboard() {
         className={`fixed top-0 left-0 h-full bg-gradient-to-b from-white via-blue-50 to-blue-100 shadow-2xl border-r border-blue-200 flex flex-col items-center py-8 px-6 w-[280px] z-40 transition-transform transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 backdrop-blur-lg`}
       >
         <div className="relative mb-6">
-          <img
-            src={profile.profileImg}
-            alt="Profile"
-            className="w-28 h-28 rounded-full border-4 border-white shadow-xl ring-4 ring-blue-100"
-          />
+          <div className="w-28 h-28 rounded-full border-4 border-white shadow-xl ring-4 ring-blue-100 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-400 text-xl font-bold select-none">
+            {/* Blank placeholder (no photo) */}
+          </div>
           <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-400 rounded-full border-4 border-white shadow-lg"></div>
         </div>
         <div className="font-bold text-2xl text-gray-900 mb-2 text-center tracking-tight">{profile.name}</div>
@@ -419,11 +484,9 @@ function CandidateDashboard() {
 
               <div className="relative z-10 flex flex-col items-center w-full">
                 <div className="relative mb-8">
-                  <img
-                    src={profile.profileImg}
-                    alt="Profile"
-                    className="w-36 h-36 rounded-full border-4 border-white shadow-2xl ring-4 ring-blue-100"
-                  />
+                  <div className="w-36 h-36 rounded-full border-4 border-white shadow-2xl ring-4 ring-blue-100 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-400 text-2xl font-bold select-none">
+                    {/* Blank placeholder (no photo) */}
+                  </div>
                   <div className="absolute -bottom-3 -right-3 w-12 h-12 bg-green-400 rounded-full border-4 border-white shadow-xl flex items-center justify-center">
                     <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -492,6 +555,8 @@ function CandidateDashboard() {
         <div className="w-full max-w-sm mx-auto mt-16 min-[1400px]:mt-0">
           <CalendarComponent
             highlightDates={highlightDates}
+            availabilityDates={availabilityDates}
+            examDates={examDates}
             onDateClick={handleCalendarClick}
           />
         </div>
@@ -528,6 +593,32 @@ function CandidateDashboard() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+      {examScheduleModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl border border-indigo-200 p-8 w-11/12 max-w-lg mx-4">
+            <h2 className="text-2xl font-bold text-indigo-800 mb-6">Schedule Exam on {examScheduleModal.date}</h2>
+            <div className="space-y-4 max-h-80 overflow-y-auto">
+              {examScheduleModal.sessions.map(s => (
+                <div key={s._id} className="p-4 border border-indigo-100 rounded-xl flex items-center justify-between bg-indigo-50">
+                  <div>
+                    <p className="font-semibold text-indigo-900">{s.title}</p>
+                    <p className="text-xs text-indigo-700">Last session: {s.lastSessionDate}</p>
+                  </div>
+                  <button
+                    disabled={scheduling}
+                    onClick={() => scheduleExam(examScheduleModal.date, s._id)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60"
+                  >{scheduling ? '...' : 'Schedule'}</button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setExamScheduleModal(null)}
+              className="mt-6 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl"
+            >Close</button>
           </div>
         </div>
       )}

@@ -2,11 +2,11 @@ const nodemailer = require('nodemailer');
 
 // Create a transporter object using SMTP credentials
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: process.env.EMAIL_SERVICE || 'gmail',
   auth: {
-    user: 'kadappasavalagi@gmail.com', // Sender's email address
-    pass: '', // App password
-  },
+    user: process.env.EMAIL_USER || 'example@example.com',
+    pass: process.env.EMAIL_PASS || 'missing_app_password'
+  }
 });
 
 /**
@@ -19,11 +19,11 @@ const transporter = nodemailer.createTransport({
 const sendEmail = async (to, subject, text, html) => {
   try {
     const mailOptions = {
-      from: 'kadappasavalagi@gmail.com', // Sender address
-      to: '01fe22bcs181@kletech.ac.in',
-      subject, // Subject line
-      text, // Plain text body
-      html, // HTML body (optional)
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER || 'no-reply@example.com',
+      to,
+      subject,
+      text,
+      html,
     };
 
     const info = await transporter.sendMail(mailOptions);

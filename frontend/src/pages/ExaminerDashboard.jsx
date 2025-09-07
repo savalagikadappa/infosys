@@ -7,6 +7,8 @@ function ExaminerDashboard() {
   const [highlightDates, setHighlightDates] = useState({});
   const [popupData, setPopupData] = useState(null);
   const [availabilityDates, setAvailabilityDates] = useState({});
+  const [examDates, setExamDates] = useState({});
+  const [allocationsByDay, setAllocationsByDay] = useState({});
   const [selectedDateKey, setSelectedDateKey] = useState(null);
   const [isAvailableOnSelected, setIsAvailableOnSelected] = useState(false);
   const navigate = useNavigate();
@@ -21,7 +23,7 @@ function ExaminerDashboard() {
           console.error('Failed to fetch calendar data:', res.status, res.statusText);
           return;
         }
-        const data = await res.json();
+  const data = await res.json();
 
         // Log the entire API response for debugging
         console.log('API Response:', data);
@@ -130,6 +132,21 @@ function ExaminerDashboard() {
             });
           setAvailabilityDates(avail);
         }
+
+        // Map exam allocations to examDates and per-day details
+        if (Array.isArray(data.allocations)) {
+          const examMap = {};
+          const byDay = {};
+          data.allocations.forEach(al => {
+            if (!al?.date) return;
+            const key = new Date(al.date).toLocaleDateString('en-CA');
+            examMap[key] = true;
+            if (!byDay[key]) byDay[key] = [];
+            byDay[key].push(al);
+          });
+          setExamDates(examMap);
+          setAllocationsByDay(byDay);
+        }
       } catch (error) {
         console.error('Error fetching highlight dates:', error);
       }
@@ -201,6 +218,7 @@ function ExaminerDashboard() {
         <CalendarComponent
           highlightDates={highlightDates}
           availabilityDates={availabilityDates}
+          examDates={examDates}
           onDateClick={handleDateClick}
         />
       </div>
@@ -209,6 +227,19 @@ function ExaminerDashboard() {
         <Modal isOpen={!!popupData} onRequestClose={closePopup} ariaHideApp={false}>
           <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-100 shadow-2xl border-2 border-blue-200 min-w-[320px] max-w-lg mx-auto">
             <h2 className="text-xl font-bold text-blue-800 mb-4">{popupData.sessions.length > 0 ? 'Sessions on ' : 'Date: '}{popupData.date}</h2>
+            {/* If there are scheduled exams on this day, show them first */}
+            {allocationsByDay[popupData.date]?.length > 0 ? (
+              <ul className="space-y-3 mb-6">
+                {allocationsByDay[popupData.date].map((al, idx) => (
+                  <li key={idx} className="p-4 bg-black text-white rounded-lg shadow-md">
+                    <p className="text-sm font-semibold">Scheduled Exam</p>
+                    <p className="text-xs">Candidate: {al.candidate?.email || 'N/A'}</p>
+                    <p className="text-xs">Session: {al.session?.title || 'N/A'}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
             {popupData.sessions.length > 0 ? (
               <ul className="space-y-4">
                 {popupData.sessions.map((session, index) => (

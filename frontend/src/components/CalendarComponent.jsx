@@ -11,17 +11,19 @@ function CalendarComponent({ highlightDates, availabilityDates = {}, examDates =
         onClickDay={onDateClick}
         tileClassName={({ date }) => {
           const key = date.toLocaleDateString('en-CA');
+          // Exam takes precedence: render only exam style, hide green/session on that day
+          if (examDates[key]) return 'exam-available-highlight';
+
           const classes = [];
           if (highlightDates[key]) classes.push('session-highlight');
           if (availabilityDates[key]) classes.push('availability-highlight');
-          if (examDates[key]) classes.push('exam-available-highlight');
           return classes.join(' ');
         }}
       />
       <div className="flex flex-wrap gap-3 mt-5 text-xs text-blue-700 justify-center">
         <span className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-rose-500 to-red-600 shadow" /> Session Scheduled</span>
         <span className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow" /> Available</span>
-        <span className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 shadow" /> Exam Scheduling</span>
+        <span className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-full bg-gradient-to-br from-gray-900 to-black shadow" /> Exam Scheduled</span>
       </div>
     </div>
   );

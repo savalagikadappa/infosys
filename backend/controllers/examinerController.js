@@ -12,7 +12,15 @@ exports.toggleAvailability = async (req, res) => {
     const d = new Date(date);
     if (isNaN(d)) return res.status(400).json({ message: 'Invalid date format' });
     // Truncate time to 00:00:00 for consistency (UTC)
-    d.setUTCHours(0,0,0,0);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    if (d < today) {
+      return res.status(400).json({ message: 'Please select a valid date which is after today' });
+    }
+
+    console.log("selected date " + date + "\n today date " + d)
+    d.setUTCHours(0, 0, 0, 0);
     const existing = await ExaminerAvailability.findOne({ examiner, date: d });
     if (existing) {
       await existing.deleteOne();
@@ -41,14 +49,14 @@ exports.getAvailability = async (req, res) => {
 exports.getExaminerCalendar = async (req, res) => {
   try {
     const examiner = req.user.userId;
-  const availabilityRecords = await ExaminerAvailability.find({ examiner });
+    const availabilityRecords = await ExaminerAvailability.find({ examiner });
     const allocations = await ExamAllocation.find({ examiner })
       .populate('candidate', 'email')
       .sort({ date: 1 });
     const sessions = await TrainingSession.find({})
       .populate('enrolledStudents', 'email')
       .populate('createdBy', 'email');
-  res.json({ availability: availabilityRecords.map(r => r.date), allocations, sessions });
+    res.json({ availability: availabilityRecords.map(r => r.date), allocations, sessions });
   } catch (err) {
     res.status(500).json({ message: 'Error fetching calendar', error: err });
   }
@@ -74,7 +82,7 @@ exports.allocateExam = async (req, res) => {
         firstSession.setDate(firstSession.getDate() + 1);
       }
       const lastSession = new Date(firstSession);
-      lastSession.setDate(lastSession.getDate() + 7 * 3); 
+      lastSession.setDate(lastSession.getDate() + 7 * 3);
       for (const candidate of session.enrolledStudents) {
         if (examDate <= lastSession) continue;
         const hasExamConflict = await ExamAllocation.findOne({

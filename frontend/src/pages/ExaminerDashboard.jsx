@@ -14,7 +14,7 @@ function ExaminerDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-  const fetchHighlightDates = async () => {
+    const fetchHighlightDates = async () => {
       try {
         const res = await fetch('/api/examiner/calendar', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -23,7 +23,7 @@ function ExaminerDashboard() {
           console.error('Failed to fetch calendar data:', res.status, res.statusText);
           return;
         }
-  const data = await res.json();
+        const data = await res.json();
 
         // Log the entire API response for debugging
         console.log('API Response:', data);
@@ -38,7 +38,7 @@ function ExaminerDashboard() {
         for (const session of data.sessions) {
           // Fetch trainer email using createdBy OID
           let trainerName = 'Unknown Trainer';
-                      // console.log("hi")
+          // console.log("hi")
           console.log("session named " + session.title + " created by " + session.createdBy._id);
           if (session.createdBy?._id) {
             try {
@@ -124,12 +124,12 @@ function ExaminerDashboard() {
         // Availability dates from API (array of ISO strings)
         if (Array.isArray(data.availability)) {
           const avail = {};
-            data.availability.forEach(d => {
-              const dateObj = new Date(d);
-              if (!isNaN(dateObj)) {
-                avail[dateObj.toLocaleDateString('en-CA')] = true;
-              }
-            });
+          data.availability.forEach(d => {
+            const dateObj = new Date(d);
+            if (!isNaN(dateObj)) {
+              avail[dateObj.toLocaleDateString('en-CA')] = true;
+            }
+          });
           setAvailabilityDates(avail);
         }
 
@@ -156,6 +156,12 @@ function ExaminerDashboard() {
   }, []);
 
   const handleDateClick = (date) => {
+    // Ignore past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+
     const key = date.toLocaleDateString('en-CA');
     setSelectedDateKey(key);
     setIsAvailableOnSelected(!!availabilityDates[key]);
@@ -181,7 +187,8 @@ function ExaminerDashboard() {
         body: JSON.stringify({ date: iso })
       });
       if (!res.ok) {
-        console.error('Failed to toggle availability');
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to toggle availability');
         return;
       }
       const data = await res.json();
@@ -196,7 +203,7 @@ function ExaminerDashboard() {
       });
       setIsAvailableOnSelected(data.available);
     } catch (e) {
-      console.error('Error toggling availability', e);
+      alert('Error toggling availability');
     }
   };
 
